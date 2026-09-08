@@ -5,46 +5,51 @@ import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
 
 export default defineConfig({
-  plugins: [
-    tailwindcss(),
-    sveltekit({
-      compilerOptions: {
-        // Force runes mode for the project, except for libraries. Can be removed in svelte 6.
-        runes: ({ filename }) =>
-          filename.split(/[/\\]/).includes('node_modules') ? undefined : true,
-        experimental: { async: true },
-      },
-      adapter: adapter(),
-      experimental: { remoteFunctions: true },
-    }),
-  ],
-  test: {
-    expect: { requireAssertions: true },
-    projects: [
-      {
-        extends: './vite.config.ts',
-        test: {
-          name: 'client',
-          browser: {
-            enabled: true,
-            provider: playwright(),
-            instances: [{ browser: 'chromium', headless: true }],
-          },
-          include: ['src/**/*.svelte.{test,spec}.{js,ts}'],
-          exclude: ['src/lib/server/**'],
-        },
-      },
+	plugins: [
+		tailwindcss(),
+		sveltekit({
+			compilerOptions: {
+				// Force runes mode for the project, except for libraries. Can be removed in svelte 6.
+				runes: ({ filename }) =>
+					filename.split(/[/\\]/).includes('node_modules') ? undefined : true,
+				experimental: { async: true }
+			},
+			adapter: adapter({
+				fallback: '404.html'
+			}),
+			paths: {
+				base: process.argv.includes('dev') ? '' : (process.env.BASE_PATH as `/${string}`)
+			},
+			experimental: { remoteFunctions: true }
+		})
+	],
+	test: {
+		expect: { requireAssertions: true },
+		projects: [
+			{
+				extends: './vite.config.ts',
+				test: {
+					name: 'client',
+					browser: {
+						enabled: true,
+						provider: playwright(),
+						instances: [{ browser: 'chromium', headless: true }]
+					},
+					include: ['src/**/*.svelte.{test,spec}.{js,ts}'],
+					exclude: ['src/lib/server/**']
+				}
+			},
 
-      {
-        extends: './vite.config.ts',
-        test: {
-          name: 'server',
-          environment: 'node',
-          include: ['src/**/*.{test,spec}.{js,ts}'],
-          exclude: ['src/**/*.svelte.{test,spec}.{js,ts}'],
-        },
-      },
-    ],
-  },
-  ssr: { noExternal: ['@lucide/svelte'] },
+			{
+				extends: './vite.config.ts',
+				test: {
+					name: 'server',
+					environment: 'node',
+					include: ['src/**/*.{test,spec}.{js,ts}'],
+					exclude: ['src/**/*.svelte.{test,spec}.{js,ts}']
+				}
+			}
+		]
+	},
+	ssr: { noExternal: ['@lucide/svelte'] }
 });
