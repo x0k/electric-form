@@ -95,7 +95,7 @@ export const LowVoltageSchema = v.object({
 });
 
 export const LightingSchema = v.object({
-  groups: optInt(0, 40, 5),
+  groups: optInt(0, 40, 0),
   passThrough: optBool(false),
   kitchenLed: optBool(false),
   mirrorLed: optBool(false),
