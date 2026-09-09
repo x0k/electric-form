@@ -19,6 +19,9 @@ export const METHOD = {
   utpPerPointM: 12,
   utpPerCameraM: 20,
   tvPerOutletM: 10,
+  /** Закладная под кондиционер */
+  chasePerAcM: 10,
+  intercomCableM: 15,
   /** Трудозатраты, часов */
   labor: {
     perSocketH: 0.7,

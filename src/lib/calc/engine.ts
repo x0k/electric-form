@@ -131,6 +131,9 @@ export function calculate(project: Project, catalog: Material[]): CalcResult {
   for (const l of kept) categoryTotals[l.category] += l.sumRub;
   const totalRub = kept.reduce((a, l) => a + l.sumRub, 0);
 
+  // Без точной планировки — шире вилка (±20%), иначе ±10%.
+  const spread = project.general.noLayoutMode ? 0.2 : 0.1;
+
   const stageTotals: Record<WorkStage, number> = { rough: 0, finish: 0 };
   for (const l of kept) stageTotals[l.stage] += l.sumRub;
 
@@ -165,8 +168,8 @@ export function calculate(project: Project, catalog: Material[]): CalcResult {
     categoryTotals,
     totalRub,
     rangeRub: {
-      min: Math.round(totalRub * 0.9),
-      max: Math.round(totalRub * 1.1),
+      min: Math.round(totalRub * (1 - spread)),
+      max: Math.round(totalRub * (1 + spread)),
     },
     stageTotals,
     stageDays,

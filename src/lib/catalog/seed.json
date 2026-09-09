@@ -274,6 +274,27 @@
     "priceRub": 2500
   },
   {
+    "id": "phase-relay",
+    "category": "panel",
+    "name": "Реле контроля фаз",
+    "unit": "pcs",
+    "priceRub": 5200
+  },
+  {
+    "id": "poe-switch",
+    "category": "lowvoltage",
+    "name": "PoE-коммутатор",
+    "unit": "pcs",
+    "priceRub": 8500
+  },
+  {
+    "id": "intercom-kit",
+    "category": "lowvoltage",
+    "name": "Домофон (комплект)",
+    "unit": "set",
+    "priceRub": 18000
+  },
+  {
     "id": "leak-sensor",
     "category": "automation",
     "name": "Датчик протечки",

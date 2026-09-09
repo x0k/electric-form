@@ -96,12 +96,6 @@
 <div class="mt-2 grid grid-cols-1 gap-x-4 md:grid-cols-2">
   <ToggleField
     {form}
-    path={['panel', 'options', 'nonDisconnect']}
-    label="Неотключаемые линии"
-    hint="Холодильник и интернет не гаснут"
-  />
-  <ToggleField
-    {form}
     path={['panel', 'options', 'fridgeLine']}
     label="Отдельная линия холодильника"
     hint="Не обесточится вместе с остальной квартирой"
@@ -150,25 +144,11 @@
           hint="Только для 3 фаз"
         />
       {/if}
-      {#if !useRcbo}
-        <ToggleField
-          {form}
-          path={['panel', 'options', 'selectiveRcd']}
-          label="Селективное УЗО"
-          hint="Отключает только аварийную линию"
-        />
-      {/if}
       <ToggleField
         {form}
         path={['panel', 'options', 'contactor']}
         label="Контактор"
         hint="Отключение групп по кнопке — например «выключить всё»"
-      />
-      <ToggleField
-        {form}
-        path={['panel', 'options', 'bypass']}
-        label="Ручной/авто байпас"
-        hint="Обход реле/стабилизатора на время ремонта"
       />
       <ToggleField
         {form}
@@ -181,12 +161,6 @@
         path={['panel', 'options', 'wattmeter']}
         label="Модульный ваттметр"
         hint="Считает расход электроэнергии в щите"
-      />
-      <ToggleField
-        {form}
-        path={['panel', 'options', 'powerLimit']}
-        label="Ограничение мощности"
-        hint="Отключит нагрузку при превышении выделенной мощности"
       />
     </div>
   </div>

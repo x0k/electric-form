@@ -53,6 +53,47 @@ export const lowVoltageRules: Rule[] = [
       return out;
     },
   },
+  {
+    id: 'lv-poe',
+    stage: 'finish',
+    label: 'PoE-коммутатор',
+    category: 'lowvoltage',
+    when: (p) =>
+      p.lowVoltage.poe && p.lowVoltage.cameras + p.lowVoltage.wifiAP > 0,
+    apply: () => [{ materialId: 'poe-switch', qty: 1 }],
+  },
+  {
+    id: 'lv-intercom-cable',
+    stage: 'rough',
+    label: 'Домофон (кабель)',
+    category: 'lowvoltage',
+    when: (p) => p.lowVoltage.intercom,
+    apply: () => [{ materialId: 'cable-utp', qty: METHOD.intercomCableM }],
+  },
+  {
+    id: 'lv-intercom-kit',
+    stage: 'finish',
+    label: 'Домофон (комплект)',
+    category: 'lowvoltage',
+    when: (p) => p.lowVoltage.intercom,
+    apply: () => [{ materialId: 'intercom-kit', qty: 1 }],
+  },
+  {
+    id: 'lv-nas-cable',
+    stage: 'rough',
+    label: 'Точка под NAS/сервер (кабель)',
+    category: 'lowvoltage',
+    when: (p) => p.lowVoltage.nas,
+    apply: () => [{ materialId: 'cable-utp', qty: METHOD.utpPerPointM }],
+  },
+  {
+    id: 'lv-nas-outlet',
+    stage: 'finish',
+    label: 'Точка под NAS/сервер (розетка)',
+    category: 'lowvoltage',
+    when: (p) => p.lowVoltage.nas,
+    apply: () => [{ materialId: 'socket-rj45', qty: 1 }],
+  },
 ];
 
 export const automationRules: Rule[] = [
@@ -130,7 +171,7 @@ export const groundingRules: Rule[] = [
     stage: 'rough',
     label: 'СУП санузлов',
     category: 'grounding',
-    when: (p) => p.bathrooms.supRequired,
+    when: (p) => p.sensors.supRequired,
     apply: (p) => [
       { materialId: 'sup-kit', qty: Math.max(p.general.bathrooms, 1) },
     ],

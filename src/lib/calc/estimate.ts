@@ -77,11 +77,12 @@ export function isPushLed(p: Project): boolean {
   return p.lighting.ledControl === 'push' && estimateLedZones(p) > 0;
 }
 
-/** Количество отдельных силовых линий. */
+/** Количество отдельных силовых линий. Кондиционер — мастер ac, дубль из power игнорим. */
 export function estimateDedicatedLines(p: Project): number {
   let n = 0;
   for (const c of p.power.consumers) {
     if (!c.present) continue;
+    if (c.kind === 'conditioner') continue;
     const qty = Math.max(c.qty, 1);
     if (c.dedicatedLine) n += qty;
   }
@@ -100,5 +101,7 @@ export function estimatePanelLines(p: Project): number {
     Math.max(p.general.rooms, 1) +
     (p.general.kitchenPresent ? 2 : 1) +
     p.general.bathrooms;
-  return base + estimateDedicatedLines(p) + estimateAcLines(p);
+  const extra =
+    (p.panel.options.fridgeLine ? 1 : 0) + (p.panel.options.netLine ? 1 : 0);
+  return base + estimateDedicatedLines(p) + estimateAcLines(p) + extra;
 }

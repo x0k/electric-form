@@ -23,7 +23,6 @@
   import { ProjectSchema } from '#lib/project/schemas';
   import type { Project } from '#lib/project/types';
   import AcStep from './steps/AcStep.svelte';
-  import BathStep from './steps/BathStep.svelte';
   import GeneralStep from './steps/GeneralStep.svelte';
   import LightingStep from './steps/LightingStep.svelte';
   import LowVoltageStep from './steps/LowVoltageStep.svelte';
@@ -224,22 +223,27 @@
         {#if STEPS[step].id === 'general'}
           <GeneralStep {form} {view} />
         {:else if STEPS[step].id === 'power'}
-          <PowerStep {form} {view} />
-        {:else if STEPS[step].id === 'ac'}
+          <h2 class="mb-2 font-semibold">Кондиционеры</h2>
           <AcStep {form} {view} />
+          <h2 class="mt-4 mb-2 font-semibold">Силовые потребители</h2>
+          <PowerStep {form} {view} />
         {:else if STEPS[step].id === 'lowvoltage'}
           <LowVoltageStep {form} {view} />
         {:else if STEPS[step].id === 'lighting'}
           <LightingStep {form} {view} />
-        {:else if STEPS[step].id === 'bath'}
-          <BathStep {form} {view} />
         {:else if STEPS[step].id === 'sensors'}
           <SensorsStep {form} {view} />
         {:else if STEPS[step].id === 'panel'}
           <PanelStep {form} {view} />
-        {:else if STEPS[step].id === 'work'}
-          <WorkStep {form} />
         {:else}
+          <details class="collapse-arrow bg-base-100 collapse mb-3">
+            <summary class="collapse-title font-medium"
+              >Настройки сроков</summary
+            >
+            <div class="collapse-content">
+              <WorkStep {form} />
+            </div>
+          </details>
           <ResultView {form} {view} {result} {savings} {overriddenCount} />
         {/if}
       </div>

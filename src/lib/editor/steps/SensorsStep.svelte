@@ -28,6 +28,12 @@
     min={0}
     max={20}
   />
+  <ToggleField
+    {form}
+    path={['sensors', 'supRequired']}
+    label="СУП обязателен"
+    hint="Уравнивание потенциалов в санузле; можно выключить, если трубы пластиковые"
+  />
   <NumberField
     {form}
     path={['sensors', 'smokeQty']}

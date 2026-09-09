@@ -29,6 +29,7 @@ export const ConsumerKindSchema = v.picklist([
   'boiler',
   'towelRail',
   'floorHeat',
+  'vent',
   'conditioner',
   'grinder',
   'other',
@@ -104,16 +105,6 @@ export const LightingSchema = v.object({
   ledSoftstart: v.boolean(),
 });
 
-export const BathroomsSchema = v.object({
-  washerInBath: v.boolean(),
-  dryerInBath: v.boolean(),
-  boilerInBath: v.boolean(),
-  floorHeatInBath: v.boolean(),
-  electricTowel: v.boolean(),
-  /** Система уравнивания потенциалов */
-  supRequired: v.boolean(),
-});
-
 export const SensorsSchema = v.object({
   /** Явные количества; пусто/0 = нет. Степперы видны всегда. */
   leakQty: int(0, 30),
@@ -124,6 +115,8 @@ export const SensorsSchema = v.object({
   temp: v.boolean(),
   smartHome: v.boolean(),
   curtainQty: int(0, 20),
+  /** Система уравнивания потенциалов */
+  supRequired: v.boolean(),
 });
 
 export const PANEL_OPTION_IDS = [
@@ -131,17 +124,13 @@ export const PANEL_OPTION_IDS = [
   'voltageRelay',
   'phaseRelay',
   'spd',
-  'selectiveRcd',
   'separateRcds',
   'rcbo',
-  'nonDisconnect',
   'fridgeLine',
   'netLine',
   'contactor',
-  'bypass',
   'voltIndication',
   'wattmeter',
-  'powerLimit',
   'reserveBreakers',
   'extraPanel',
 ] as const;
@@ -188,7 +177,6 @@ export const ProjectSchema = v.object({
   ac: AcSchema,
   lowVoltage: LowVoltageSchema,
   lighting: LightingSchema,
-  bathrooms: BathroomsSchema,
   sensors: SensorsSchema,
   panel: PanelSchema,
   work: WorkSchema,
@@ -202,17 +190,13 @@ export const PANEL_OPTION_LABELS: Record<PanelOptionId, string> = {
   voltageRelay: 'Реле напряжения',
   phaseRelay: 'Реле контроля фаз',
   spd: 'УЗИП',
-  selectiveRcd: 'Селективное УЗО',
   separateRcds: 'Отдельные УЗО на группы',
   rcbo: 'Дифавтоматы вместо УЗО+АВ',
-  nonDisconnect: 'Неотключаемые линии',
   fridgeLine: 'Отдельная линия холодильника',
   netLine: 'Линия интернета/оборудования',
   contactor: 'Контактор',
-  bypass: 'Ручной/авто байпас',
   voltIndication: 'Индикация напряжения',
   wattmeter: 'Модульный ваттметр',
-  powerLimit: 'Ограничение мощности',
   reserveBreakers: 'Резервные автоматы',
   extraPanel: 'Доп. щит / слаботочный шкаф',
 };

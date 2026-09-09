@@ -1,4 +1,9 @@
-import { estimatePanelLines, estimateSockets } from '../estimate';
+import { METHOD } from '../method';
+import {
+  estimateAcLines,
+  estimatePanelLines,
+  estimateSockets,
+} from '../estimate';
 import type { Rule } from '../types';
 
 export const mountingRules: Rule[] = [
@@ -45,6 +50,19 @@ export const mountingRules: Rule[] = [
       {
         materialId: 'terminals',
         qty: Math.max(1, Math.ceil(estimatePanelLines(p) / 8)),
+      },
+    ],
+  },
+  {
+    id: 'mount-chase',
+    label: 'Закладные под кондиционеры',
+    category: 'mounting',
+    stage: 'rough',
+    when: (p) => p.ac.chaseNeeded && estimateAcLines(p) > 0,
+    apply: (p) => [
+      {
+        materialId: 'corr-25',
+        qty: estimateAcLines(p) * METHOD.chasePerAcM,
       },
     ],
   },

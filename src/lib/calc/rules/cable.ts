@@ -15,10 +15,14 @@ export const cableRules: Rule[] = [
     stage: 'rough',
     apply: (p) => {
       const sockets = estimateSockets(p);
+      const extraLines =
+        (p.panel.options.fridgeLine ? 1 : 0) +
+        (p.panel.options.netLine ? 1 : 0);
       const qty =
         sockets * METHOD.cablePerSocketM +
         estimateDedicatedLines(p) * METHOD.cablePerDedicatedLineM +
-        estimateAcLines(p) * METHOD.cablePerAcM;
+        estimateAcLines(p) * METHOD.cablePerAcM +
+        extraLines * METHOD.cablePerDedicatedLineM;
       return [{ materialId: 'cable-vvg-3x2.5', qty: Math.ceil(qty) }];
     },
   },
