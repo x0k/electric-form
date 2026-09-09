@@ -1,4 +1,4 @@
-import { estimateSockets } from '../estimate';
+import { estimateLedZones, estimateSockets, isPushLed } from '../estimate';
 import type { Rule } from '../types';
 
 export const socketsRules: Rule[] = [
@@ -52,7 +52,33 @@ export const socketsRules: Rule[] = [
           materialId: 'led-mirror',
           qty: Math.max(p.general.bathrooms, 1),
         });
+      if (p.lighting.decorLed) out.push({ materialId: 'led-decor', qty: 1 });
+      const zones = estimateLedZones(p);
+      if (isPushLed(p)) {
+        out.push({ materialId: 'led-driver-push', qty: zones });
+        out.push({ materialId: 'push-button', qty: zones });
+      } else if (p.lighting.ledSoftstart && zones > 0) {
+        out.push({ materialId: 'led-softstart', qty: zones });
+      }
       return out;
     },
+  },
+  {
+    id: 'led-power-cable',
+    label: 'Линии до LED-щита',
+    category: 'cable',
+    stage: 'rough',
+    when: (p) => p.lighting.ledPanel && estimateLedZones(p) > 0,
+    apply: (p) => [
+      { materialId: 'cable-vvg-3x1.5', qty: estimateLedZones(p) * 12 },
+    ],
+  },
+  {
+    id: 'led-power-box',
+    label: 'Щиток под БП ленты',
+    category: 'lighting',
+    stage: 'rough',
+    when: (p) => p.lighting.ledPanel && estimateLedZones(p) > 0,
+    apply: () => [{ materialId: 'led-box', qty: 1 }],
   },
 ];

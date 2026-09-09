@@ -25,5 +25,9 @@ describe('дефолт проекта', () => {
     expect(p.sensors.leakage).toBe(false);
     expect(p.sensors.curtains).toBe(false);
     expect(p.ac.count).toBe(0);
+    // Лента: ни щита, ни плавного пуска по умолчанию.
+    expect(p.lighting.ledPanel).toBe(false);
+    expect(p.lighting.ledControl).toBe('triac');
+    expect(p.lighting.ledSoftstart).toBe(false);
   });
 });

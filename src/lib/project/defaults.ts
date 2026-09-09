@@ -110,6 +110,9 @@ export function createDefaultProject(name = 'Новая квартира'): Proj
       decorLed: false,
       dimming: false,
       smart: false,
+      ledPanel: false,
+      ledControl: 'triac',
+      ledSoftstart: false,
     },
     bathrooms: {
       washerInBath: false,

@@ -1,7 +1,7 @@
 import * as v from 'valibot';
 
 /** Текущая версия схемы проекта. Инкрементировать при breaking-изменениях. */
-export const SCHEMA_VERSION = 2 as const;
+export const SCHEMA_VERSION = 3 as const;
 
 const int = (min: number, max: number) =>
   v.pipe(v.number(), v.integer(), v.minValue(min), v.maxValue(max));
@@ -102,6 +102,12 @@ export const LightingSchema = v.object({
   decorLed: optBool(false),
   dimming: optBool(false),
   smart: optBool(false),
+  /** Отдельный щит под ленту: от него тянутся отдельные линии (больше кабеля). */
+  ledPanel: optBool(false),
+  /** Управление лентой при диммировании: обычный диммер или push-кнопка. */
+  ledControl: v.optional(v.picklist(['triac', 'push'] as const), 'triac'),
+  /** Плавный пуск ленты (для обычной установки через выключатель/диммер). */
+  ledSoftstart: optBool(false),
 });
 
 export const BathroomsSchema = v.object({

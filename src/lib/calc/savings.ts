@@ -29,6 +29,13 @@ export const SAVING_OPTIONS: SavingOption[] = [
     },
   },
   {
+    id: 'ledPanel',
+    label: 'LED-щит → питание от общей фазы света',
+    disable: (p) => {
+      p.lighting.ledPanel = false;
+    },
+  },
+  {
     id: 'fireRcd',
     label: 'Отказаться от противопожарного УЗО',
     disable: (p) => {

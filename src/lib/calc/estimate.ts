@@ -18,6 +18,24 @@ export function estimateLightPoints(p: Project): number {
   return p.lighting.groups * 2;
 }
 
+/** Активные зоны ленты (кухня/зеркала/декор) — для БП, управления и кабеля. */
+export function estimateLedZones(p: Project): number {
+  return [
+    p.lighting.kitchenLed,
+    p.lighting.mirrorLed,
+    p.lighting.decorLed,
+  ].filter(Boolean).length;
+}
+
+/** Push-диммирование ленты: диммирование включено и выбран push. */
+export function isPushLed(p: Project): boolean {
+  return (
+    p.lighting.dimming &&
+    estimateLedZones(p) > 0 &&
+    p.lighting.ledControl === 'push'
+  );
+}
+
 /** Количество отдельных силовых линий. */
 export function estimateDedicatedLines(p: Project): number {
   let n = 0;

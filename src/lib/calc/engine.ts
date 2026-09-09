@@ -1,7 +1,11 @@
 import type { CostCategory, Material } from '#lib/catalog/types';
 import { COST_CATEGORIES, DEFAULT_WASTE_PCT } from '#lib/catalog/types';
 import type { Project } from '#lib/project/types';
-import { estimatePanelLines, estimateSockets } from './estimate';
+import {
+  estimateLedZones,
+  estimatePanelLines,
+  estimateSockets,
+} from './estimate';
 import { METHOD } from './method';
 import {
   automationRules,
@@ -213,6 +217,9 @@ function estimateLabor(p: Project): LaborTask[] {
       hours: Math.round(lvPoints * L.perLowVoltagePointH * 10) / 10,
       stage: 'rough',
     },
+    ...(p.lighting.ledPanel && estimateLedZones(p) > 0
+      ? [{ label: 'Закладка LED-щита', hours: 1, stage: 'rough' as const }]
+      : []),
     { label: 'Пусконаладка', hours: L.baseH / 4, stage: 'finish' },
   ];
 }

@@ -134,6 +134,41 @@
     "priceRub": 3500
   },
   {
+    "id": "led-decor",
+    "category": "lighting",
+    "name": "Декоративная подсветка (компл.)",
+    "unit": "set",
+    "priceRub": 4500
+  },
+  {
+    "id": "led-driver-push",
+    "category": "lighting",
+    "name": "Драйвер ленты с push-dim",
+    "unit": "pcs",
+    "priceRub": 5500
+  },
+  {
+    "id": "push-button",
+    "category": "lighting",
+    "name": "Кнопка push для диммирования",
+    "unit": "pcs",
+    "priceRub": 900
+  },
+  {
+    "id": "led-softstart",
+    "category": "lighting",
+    "name": "Модуль плавного пуска ленты",
+    "unit": "pcs",
+    "priceRub": 2500
+  },
+  {
+    "id": "led-box",
+    "category": "lighting",
+    "name": "Щиток под БП ленты",
+    "unit": "pcs",
+    "priceRub": 4500
+  },
+  {
     "id": "breaker-16",
     "category": "panel",
     "name": "Автомат 16А",

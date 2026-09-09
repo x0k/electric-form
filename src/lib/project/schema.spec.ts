@@ -37,6 +37,23 @@ describe('project schema v2', () => {
     expect(parseProject(p).ok).toBe(true);
   });
 
+  it('миграция v2-проекта без полей ленты ставит их дефолты', () => {
+    const v2 = createDefaultProject('v2');
+    const { lighting, ...rest } = v2 as unknown as Record<string, unknown>;
+    const { ledPanel, ledControl, ledSoftstart, ...oldLighting } =
+      lighting as Record<string, unknown>;
+    void ledPanel;
+    void ledControl;
+    void ledSoftstart;
+    const p = migrate({ ...rest, lighting: oldLighting });
+    expect(p.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(p.lighting.ledPanel).toBe(false);
+    expect(p.lighting.ledControl).toBe('triac');
+    expect(p.lighting.ledSoftstart).toBe(false);
+    expect(p.lighting.kitchenLed).toBe(v2.lighting.kitchenLed);
+    expect(parseProject(p).ok).toBe(true);
+  });
+
   it('невалидный мусор даёт fallback', () => {
     const p = migrate(null);
     expect(parseProject(p).ok).toBe(true);
