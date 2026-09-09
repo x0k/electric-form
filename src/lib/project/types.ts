@@ -12,6 +12,7 @@ import type {
   PowerConsumerSchema,
   PowerSchema,
   ProjectSchema,
+  ScopeSchema,
   SensorsSchema,
   WorkSchema,
 } from './schemas';
@@ -29,5 +30,6 @@ export type Sensors = v.InferOutput<typeof SensorsSchema>;
 export type PanelOptions = v.InferOutput<typeof PanelOptionsSchema>;
 export type Panel = v.InferOutput<typeof PanelSchema>;
 export type Work = v.InferOutput<typeof WorkSchema>;
+export type Scope = v.InferOutput<typeof ScopeSchema>;
 export type Project = v.InferOutput<typeof ProjectSchema>;
 export type ProjectInput = v.InferInput<typeof ProjectSchema>;

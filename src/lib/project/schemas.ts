@@ -1,7 +1,7 @@
 import * as v from 'valibot';
 
 /** Текущая версия схемы проекта. Инкрементировать при breaking-изменениях. */
-export const SCHEMA_VERSION = 1 as const;
+export const SCHEMA_VERSION = 2 as const;
 
 const int = (min: number, max: number) =>
   v.pipe(v.number(), v.integer(), v.minValue(min), v.maxValue(max));
@@ -177,6 +177,11 @@ export const WorkSchema = v.object({
   uncertaintyK: optNum(1, 1.6, 1.15),
 });
 
+export const ScopeSchema = v.object({
+  /** Розетки и выключатели покупает/ставит заказчик — исключаем из сметы. */
+  customerSockets: optBool(false),
+});
+
 export const ProjectSchema = v.object({
   schemaVersion: v.optional(v.literal(SCHEMA_VERSION), SCHEMA_VERSION),
   meta: MetaSchema,
@@ -189,6 +194,7 @@ export const ProjectSchema = v.object({
   sensors: v.optional(SensorsSchema, {}),
   panel: v.optional(PanelSchema, {}),
   work: v.optional(WorkSchema, {}),
+  scope: v.optional(ScopeSchema, {}),
 });
 
 export type PanelOptionId = (typeof PANEL_OPTION_IDS)[number];

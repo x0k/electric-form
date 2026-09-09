@@ -38,6 +38,7 @@ export function pickBoxId(modulesWithReserve: number): string {
 export const panelRules: Rule[] = [
   {
     id: 'panel-breakers',
+    stage: 'rough',
     label: 'Автоматы линий',
     category: 'panel',
     apply: (p) => {
@@ -56,6 +57,7 @@ export const panelRules: Rule[] = [
   },
   {
     id: 'panel-rcd',
+    stage: 'rough',
     label: 'УЗО',
     category: 'panel',
     apply: (p) => {
@@ -78,6 +80,7 @@ export const panelRules: Rule[] = [
   },
   {
     id: 'panel-fire-rcd',
+    stage: 'rough',
     label: 'Противопожарное УЗО',
     category: 'panel',
     when: (p) => !!p.panel.options.fireRcd,
@@ -85,6 +88,7 @@ export const panelRules: Rule[] = [
   },
   {
     id: 'panel-voltage',
+    stage: 'rough',
     label: 'Реле напряжения',
     category: 'panel',
     when: (p) => !!p.panel.options.voltageRelay,
@@ -94,6 +98,7 @@ export const panelRules: Rule[] = [
   },
   {
     id: 'panel-spd',
+    stage: 'rough',
     label: 'УЗИП',
     category: 'panel',
     when: (p) => !!p.panel.options.spd,
@@ -101,6 +106,7 @@ export const panelRules: Rule[] = [
   },
   {
     id: 'panel-contactor',
+    stage: 'rough',
     label: 'Контактор',
     category: 'panel',
     when: (p) => !!p.panel.options.contactor,
@@ -108,6 +114,7 @@ export const panelRules: Rule[] = [
   },
   {
     id: 'panel-meter',
+    stage: 'rough',
     label: 'Учёт и индикация',
     category: 'panel',
     when: (p) =>
@@ -123,12 +130,14 @@ export const panelRules: Rule[] = [
   },
   {
     id: 'panel-box',
+    stage: 'rough',
     label: 'Корпус щита',
     category: 'panel',
     apply: () => [],
   },
   {
     id: 'panel-din',
+    stage: 'rough',
     label: 'Кросс-модуль и шины',
     category: 'panel',
     apply: () => [{ materialId: 'din-rail', qty: 1 }],

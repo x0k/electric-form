@@ -223,7 +223,7 @@
         {:else if STEPS[step].id === 'work'}
           <WorkStep {form} />
         {:else}
-          <ResultView {view} {result} {savings} {overriddenCount} />
+          <ResultView {form} {view} {result} {savings} {overriddenCount} />
         {/if}
       </div>
     </div>

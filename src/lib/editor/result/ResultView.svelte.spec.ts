@@ -3,29 +3,20 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render } from 'vitest-browser-svelte';
 import { SEED_CATALOG } from '#lib/catalog/index';
 import { calculate } from '#lib/calc/engine';
-import { calcSavings } from '#lib/calc/savings';
 import { createDefaultProject } from '#lib/project/defaults';
-import ResultView from './ResultView.svelte';
+import ResultViewHarness from './ResultViewHarness.svelte';
 
 afterEach(() => cleanup());
 
-async function renderResult() {
+function fixture() {
   const view = createDefaultProject('Тест');
-  const result = calculate(view, SEED_CATALOG);
-  await render(ResultView, {
-    props: {
-      view,
-      result,
-      savings: calcSavings(view, SEED_CATALOG),
-      overriddenCount: 0,
-    },
-  });
-  return result;
+  return { view, result: calculate(view, SEED_CATALOG) };
 }
 
 describe('ResultView категории', () => {
   it('категория раскрывается до конкретных позиций', async () => {
-    const result = await renderResult();
+    await render(ResultViewHarness);
+    const { result } = fixture();
     const first = result.lines[0];
 
     // Позиция скрыта, пока категория не раскрыта (.first() — вхождение
@@ -42,7 +33,8 @@ describe('ResultView категории', () => {
   });
 
   it('кнопка разворачивает все категории сразу', async () => {
-    const result = await renderResult();
+    await render(ResultViewHarness);
+    const { result } = fixture();
     await page.getByRole('button', { name: 'Развернуть всё' }).click();
 
     const names = [...new Set(result.lines.map((l) => l.materialName))].slice(
@@ -61,5 +53,35 @@ describe('ResultView категории', () => {
         page.getByText(result.lines[0].materialName, { exact: false }).first()
       )
       .not.toBeVisible();
+  });
+
+  it('тоггл заказчика убирает розетки из итога в «своими силами»', async () => {
+    await render(ResultViewHarness);
+    const { result } = fixture();
+    const socketsSum = result.lines
+      .filter((l) => l.category === 'sockets')
+      .reduce((a, l) => a + l.sumRub, 0);
+    expect(socketsSum).toBeGreaterThan(0);
+
+    const total = page.getByText('Итого к закупке');
+    await expect.element(total).toBeVisible();
+
+    await page.getByRole('checkbox', { name: /ставит заказчик/ }).click();
+
+    await expect.element(page.getByText('Своими силами')).toBeVisible();
+    // Розеточная позиция ушла из сметы в блок «своими силами»:
+    // в списке материалов её больше не видно раскрытой? Проверяем сумму.
+    await expect.element(page.getByText('Итого к закупке')).toBeVisible();
+    // Точное значение итога проверять хрупко (формат), достаточно факта
+    // переключения блоков и отсутствия категории розеток в этапах.
+    await page.getByRole('button', { name: 'Развернуть всё' }).click();
+    const socketName = result.lines.find(
+      (l) => l.category === 'sockets'
+    )?.materialName;
+    if (socketName) {
+      const occurrences = page.getByText(socketName, { exact: false });
+      // Осталось единственное вхождение — в «Своими силами».
+      expect((await occurrences.elements()).length).toBe(1);
+    }
   });
 });

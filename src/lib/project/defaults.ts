@@ -138,6 +138,7 @@ export function createDefaultProject(name = 'Новая квартира'): Proj
       options: { ...PANEL_DEFAULTS },
     },
     work: { electricians: 2, complexityK: 1, uncertaintyK: 1.15 },
+    scope: { customerSockets: false },
   };
 }
 

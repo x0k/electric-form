@@ -12,6 +12,7 @@ export const cableRules: Rule[] = [
     id: 'cable-power',
     label: 'Силовой кабель',
     category: 'cable',
+    stage: 'rough',
     apply: (p) => {
       const sockets = estimateSockets(p);
       const qty =
@@ -25,6 +26,7 @@ export const cableRules: Rule[] = [
     id: 'cable-light',
     label: 'Кабель освещения',
     category: 'cable',
+    stage: 'rough',
     apply: (p) => {
       const qty =
         estimateLightPoints(p) * METHOD.cablePerLightPointM +
@@ -36,6 +38,7 @@ export const cableRules: Rule[] = [
     id: 'cable-input',
     label: 'Ввод в квартиру',
     category: 'cable',
+    stage: 'rough',
     apply: (p) => [
       {
         materialId:
@@ -48,6 +51,7 @@ export const cableRules: Rule[] = [
     id: 'cable-corrugation',
     label: 'Гофра под кабель',
     category: 'mounting',
+    stage: 'rough',
     apply: (p) => {
       const sockets = estimateSockets(p);
       const qty =

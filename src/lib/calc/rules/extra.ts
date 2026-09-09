@@ -4,6 +4,7 @@ import type { Rule } from '../types';
 export const lowVoltageRules: Rule[] = [
   {
     id: 'lv-utp',
+    stage: 'rough',
     label: 'Витая пара',
     category: 'lowvoltage',
     when: (p) =>
@@ -23,6 +24,7 @@ export const lowVoltageRules: Rule[] = [
   },
   {
     id: 'lv-tv',
+    stage: 'rough',
     label: 'ТВ-кабель',
     category: 'lowvoltage',
     when: (p) => p.lowVoltage.tvOutlets > 0,
@@ -35,6 +37,7 @@ export const lowVoltageRules: Rule[] = [
   },
   {
     id: 'lv-outlets',
+    stage: 'finish',
     label: 'Слаботочные розетки',
     category: 'lowvoltage',
     when: (p) => p.lowVoltage.ethernetPoints > 0 || p.lowVoltage.tvOutlets > 0,
@@ -55,6 +58,7 @@ export const lowVoltageRules: Rule[] = [
 export const automationRules: Rule[] = [
   {
     id: 'auto-leak',
+    stage: 'finish',
     label: 'Защита от протечек',
     category: 'automation',
     when: (p) => p.sensors.leakage,
@@ -65,6 +69,7 @@ export const automationRules: Rule[] = [
   },
   {
     id: 'auto-smoke',
+    stage: 'finish',
     label: 'Дымовые датчики',
     category: 'automation',
     when: (p) => p.sensors.smoke,
@@ -74,6 +79,7 @@ export const automationRules: Rule[] = [
   },
   {
     id: 'auto-motion',
+    stage: 'finish',
     label: 'Датчики движения',
     category: 'automation',
     when: (p) => p.sensors.motion,
@@ -86,6 +92,7 @@ export const automationRules: Rule[] = [
   },
   {
     id: 'auto-curtains',
+    stage: 'finish',
     label: 'Электрокарнизы',
     category: 'automation',
     when: (p) => p.sensors.curtains,
@@ -98,6 +105,7 @@ export const automationRules: Rule[] = [
 export const groundingRules: Rule[] = [
   {
     id: 'sup',
+    stage: 'rough',
     label: 'СУП санузлов',
     category: 'grounding',
     when: (p) => p.bathrooms.supRequired,

@@ -15,7 +15,8 @@ export function migrate(raw: unknown): Project {
   const version = obj['schemaVersion'];
   void version;
 
-  // v1: shallow-merge по секциям поверх дефолта, дальше — строгий parse.
+  // v1→v2: shallow-merge по секциям поверх дефолта, дальше — строгий parse.
+  // v2 добавила секцию scope; у старых проектов она подставится из фолбэка.
   const merged = {
     ...fallback,
     ...(obj as object),
@@ -44,6 +45,7 @@ export function migrate(raw: unknown): Project {
       },
     },
     work: { ...fallback.work, ...((obj['work'] as object) ?? {}) },
+    scope: { ...fallback.scope, ...((obj['scope'] as object) ?? {}) },
     schemaVersion: SCHEMA_VERSION,
   };
 

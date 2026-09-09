@@ -6,12 +6,14 @@ export const socketsRules: Rule[] = [
     id: 'sockets-220',
     label: 'Розетки 220В',
     category: 'sockets',
+    stage: 'finish',
     apply: (p) => [{ materialId: 'socket-220', qty: estimateSockets(p) }],
   },
   {
     id: 'switches',
     label: 'Выключатели',
     category: 'sockets',
+    stage: 'finish',
     apply: (p) => {
       if (p.lighting.passThrough) {
         return [
@@ -25,6 +27,7 @@ export const socketsRules: Rule[] = [
     id: 'dimmers',
     label: 'Диммеры',
     category: 'lighting',
+    stage: 'finish',
     when: (p) => p.lighting.dimming,
     apply: (p) => [
       {
@@ -37,6 +40,7 @@ export const socketsRules: Rule[] = [
     id: 'led',
     label: 'Подсветка',
     category: 'lighting',
+    stage: 'finish',
     when: (p) =>
       p.lighting.kitchenLed || p.lighting.mirrorLed || p.lighting.decorLed,
     apply: (p) => {

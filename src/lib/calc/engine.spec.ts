@@ -40,6 +40,49 @@ describe('engine v1', () => {
     expect(s[0].deltaRub).toBeGreaterThan(0);
   });
 
+  it('этапы в сумме дают итог, кабель — черновой, розетки — чистовой', () => {
+    const p = createDefaultProject('stages');
+    p.general.areaM2 = 70;
+    p.power.consumers[0].present = true;
+    p.power.consumers[0].qty = 1;
+    p.power.consumers[0].dedicatedLine = true;
+    p.lowVoltage.ethernetPoints = 4;
+    p.lighting.groups = 4;
+    const r = calculate(p, SEED_CATALOG);
+    expect(r.stageTotals.rough + r.stageTotals.finish).toBe(r.totalRub);
+    expect(r.stageTotals.rough).toBeGreaterThan(0);
+    expect(r.stageTotals.finish).toBeGreaterThan(0);
+    const cableStage = new Set(
+      r.lines.filter((l) => l.category === 'cable').map((l) => l.stage)
+    );
+    expect([...cableStage]).toEqual(['rough']);
+    const socketsStage = new Set(
+      r.lines.filter((l) => l.category === 'sockets').map((l) => l.stage)
+    );
+    expect([...socketsStage]).toEqual(['finish']);
+    // Дни этапов покрывают общий срок.
+    expect(r.stageDays.rough.min).toBeGreaterThanOrEqual(1);
+    expect(r.stageDays.finish.min).toBeGreaterThanOrEqual(1);
+  });
+
+  it('флаг заказчика исключает розетки из сметы в «своими силами»', () => {
+    const base = createDefaultProject('full');
+    base.general.areaM2 = 70;
+    const full = calculate(base, SEED_CATALOG);
+    const mod = createDefaultProject('self');
+    mod.general.areaM2 = 70;
+    mod.scope.customerSockets = true;
+    const cut = calculate(mod, SEED_CATALOG);
+    const socketsSum = full.lines
+      .filter((l) => l.category === 'sockets')
+      .reduce((a, l) => a + l.sumRub, 0);
+    expect(socketsSum).toBeGreaterThan(0);
+    expect(cut.excludedTotalRub).toBe(socketsSum);
+    expect(cut.totalRub).toBe(full.totalRub - socketsSum);
+    expect(cut.lines.some((l) => l.category === 'sockets')).toBe(false);
+    expect(cut.excludedLines.every((l) => l.category === 'sockets')).toBe(true);
+  });
+
   it('модули щита растут с опциями', () => {
     const a = createDefaultProject('a');
     const b = createDefaultProject('b');

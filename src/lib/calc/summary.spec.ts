@@ -12,7 +12,9 @@ describe('formatSummary', () => {
     const text = formatSummary(view, result, calcSavings(view, SEED_CATALOG));
 
     expect(text).toContain('Тест');
-    expect(text).toContain('Итого:');
+    expect(text).toContain('Итого к закупке:');
+    expect(text).toContain('Этап 1 — черновой монтаж');
+    expect(text).toContain('Этап 2 — чистовая установка');
     expect(text).toContain('Кабель:');
     // Хотя бы одна конкретная позиция из движка попадает в текст.
     const first = result.lines[0];
