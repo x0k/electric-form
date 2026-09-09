@@ -67,13 +67,8 @@ export const PowerConsumerSchema = v.object({
 
 export const PowerSchema = v.object({
   consumers: v.array(PowerConsumerSchema),
-});
-
-export const AcSchema = v.object({
-  count: int(0, 10),
-  dedicatedLines: v.boolean(),
-  chaseNeeded: v.boolean(),
-  reserveFuture: v.boolean(),
+  /** Штробы и дренаж под кондиционеры до ремонта. */
+  conditionerChase: v.boolean(),
 });
 
 export const LowVoltageSchema = v.object({
@@ -174,7 +169,6 @@ export const ProjectSchema = v.object({
   meta: MetaSchema,
   general: GeneralSchema,
   power: PowerSchema,
-  ac: AcSchema,
   lowVoltage: LowVoltageSchema,
   lighting: LightingSchema,
   sensors: SensorsSchema,

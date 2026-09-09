@@ -99,12 +99,7 @@ export function createDefaultProject(name = 'Новая квартира'): Proj
         dedicatedLine: false,
         powerKw: DEFAULT_POWER_KW[kind],
       })),
-    },
-    ac: {
-      count: 0,
-      dedicatedLines: true,
-      chaseNeeded: false,
-      reserveFuture: false,
+      conditionerChase: false,
     },
     lowVoltage: {
       ethernetPoints: deriveEthernetPoints(tv, wifi),

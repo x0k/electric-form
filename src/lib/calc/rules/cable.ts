@@ -1,6 +1,5 @@
 import { METHOD } from '../method';
 import {
-  estimateAcLines,
   estimateDedicatedLines,
   estimateLightPoints,
   estimateSockets,
@@ -21,7 +20,6 @@ export const cableRules: Rule[] = [
       const qty =
         sockets * METHOD.cablePerSocketM +
         estimateDedicatedLines(p) * METHOD.cablePerDedicatedLineM +
-        estimateAcLines(p) * METHOD.cablePerAcM +
         extraLines * METHOD.cablePerDedicatedLineM;
       return [{ materialId: 'cable-vvg-3x2.5', qty: Math.ceil(qty) }];
     },

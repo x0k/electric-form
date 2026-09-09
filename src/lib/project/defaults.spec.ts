@@ -46,7 +46,10 @@ describe('дефолт проекта', () => {
     // Щит и работы: без запаса и опций.
     expect(p.panel.reserveModules).toBe(0);
     expect(Object.values(p.panel.options).every((v) => !v)).toBe(true);
-    expect(p.ac.count).toBe(0);
+    expect(p.power.consumers.find((c) => c.kind === 'conditioner')!.qty).toBe(
+      0
+    );
+    expect(p.power.conditionerChase).toBe(false);
     // Лента: ни щита, ни плавного пуска по умолчанию.
     expect(p.lighting.ledPanel).toBe(false);
     expect(p.lighting.ledControl).toBe('triac');

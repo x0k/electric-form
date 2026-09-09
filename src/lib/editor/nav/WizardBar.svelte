@@ -3,20 +3,18 @@
 
   let {
     step,
-    nextTodo,
-    nextTarget,
     onPrev,
     onNext,
   }: {
     step: number;
-    nextTodo: number;
-    nextTarget: number;
     onPrev: () => void;
     onNext: () => void;
   } = $props();
+
+  const isLast = $derived(step >= STEPS.length - 1);
 </script>
 
-<!-- Компактная нижняя навигация: назад / следующий незаполненный / меню -->
+<!-- Компактная нижняя навигация: назад / далее / меню -->
 <div
   class="fixed inset-x-0 bottom-0 z-10 border-t border-base-300 bg-base-100/95 backdrop-blur"
 >
@@ -29,17 +27,17 @@
       aria-label="Предыдущий этап"
       onclick={onPrev}>←</button
     >
-    <button
-      class="btn btn-primary h-12 min-w-0 flex-1 justify-between"
-      onclick={onNext}
-    >
-      <span class="min-w-0 flex-1 truncate text-left">
-        {nextTodo === -1
-          ? 'Показать итог'
-          : `Далее: ${STEPS[nextTarget].title}`}
-      </span>
-      <span aria-hidden="true">→</span>
-    </button>
+    {#if !isLast}
+      <button
+        class="btn btn-primary h-12 min-w-0 flex-1 justify-between"
+        onclick={onNext}
+      >
+        <span class="min-w-0 flex-1 truncate text-left">
+          {`Далее: ${STEPS[step + 1].title}`}
+        </span>
+        <span aria-hidden="true">→</span>
+      </button>
+    {/if}
     <label
       for="steps-drawer"
       class="btn btn-square shrink-0 tabular-nums"

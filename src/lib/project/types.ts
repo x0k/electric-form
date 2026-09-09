@@ -1,6 +1,5 @@
 import type * as v from 'valibot';
 import type {
-  AcSchema,
   ConsumerKindSchema,
   GeneralSchema,
   LightingSchema,
@@ -21,7 +20,6 @@ export type General = v.InferOutput<typeof GeneralSchema>;
 export type ConsumerKind = v.InferOutput<typeof ConsumerKindSchema>;
 export type PowerConsumer = v.InferOutput<typeof PowerConsumerSchema>;
 export type Power = v.InferOutput<typeof PowerSchema>;
-export type Ac = v.InferOutput<typeof AcSchema>;
 export type LowVoltage = v.InferOutput<typeof LowVoltageSchema>;
 export type Lighting = v.InferOutput<typeof LightingSchema>;
 export type Sensors = v.InferOutput<typeof SensorsSchema>;

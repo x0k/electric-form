@@ -11,7 +11,7 @@ export const STEPS: WizardStep[] = [
     title: 'Общее и планировка',
     paths: [['general'], ['meta']],
   },
-  { id: 'power', title: 'Климат и силовые', paths: [['ac'], ['power']] },
+  { id: 'power', title: 'Силовые потребители', paths: [['power']] },
   { id: 'lowvoltage', title: 'Слаботочка', paths: [['lowVoltage']] },
   { id: 'lighting', title: 'Освещение', paths: [['lighting']] },
   {

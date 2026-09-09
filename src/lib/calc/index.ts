@@ -4,7 +4,7 @@ export {
   estimateSockets,
   estimatePanelLines,
   estimateDedicatedLines,
-  estimateAcLines,
+  estimateConditionerQty,
 } from './estimate';
 export { calculate, ALL_RULES } from './engine';
 export { calcSavings, SAVING_OPTIONS } from './savings';

@@ -17,7 +17,7 @@ describe('7 steps', () => {
       'result',
     ]);
     const power = STEPS.find((s) => s.id === 'power')!;
-    expect(power.paths).toEqual([['ac'], ['power']]);
+    expect(power.paths).toEqual([['power']]);
     const result = STEPS.find((s) => s.id === 'result')!;
     expect(result.paths).toEqual([['work']]);
   });
@@ -32,5 +32,29 @@ describe('7 steps', () => {
     off.sensors.supRequired = false;
     const ids2 = calculate(off, SEED_CATALOG).lines.map((l) => l.materialId);
     expect(ids2).not.toContain('sup-kit');
+  });
+  it('conditioner is an ordinary power consumer; chase needs qty', () => {
+    const base = createDefaultProject('base');
+    const mod = createDefaultProject('mod');
+    const cond = mod.power.consumers.find((c) => c.kind === 'conditioner')!;
+    cond.present = true;
+    cond.qty = 2;
+    cond.dedicatedLine = true;
+    mod.power.conditionerChase = true;
+    const rb = calculate(base, SEED_CATALOG);
+    const rm = calculate(mod, SEED_CATALOG);
+    expect(rm.totalRub).toBeGreaterThan(rb.totalRub);
+    expect(rm.panelModules).toBeGreaterThan(rb.panelModules);
+    expect(rm.lines.map((l) => l.materialId)).toContain('corr-25');
+    const noChase = createDefaultProject('nochase');
+    const cond2 = noChase.power.consumers.find(
+      (c) => c.kind === 'conditioner'
+    )!;
+    cond2.present = true;
+    cond2.qty = 2;
+    cond2.dedicatedLine = true;
+    expect(
+      calculate(noChase, SEED_CATALOG).lines.map((l) => l.materialId)
+    ).not.toContain('corr-25');
   });
 });

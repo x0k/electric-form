@@ -1,8 +1,4 @@
-import {
-  estimateAcLines,
-  estimateDedicatedLines,
-  estimatePanelLines,
-} from '../estimate';
+import { estimateDedicatedLines, estimatePanelLines } from '../estimate';
 import type { Rule } from '../types';
 
 /** Модули DIN на устройство — для подбора корпуса. */
@@ -45,7 +41,7 @@ export const panelRules: Rule[] = [
     category: 'panel',
     apply: (p) => {
       const lines = estimatePanelLines(p);
-      const dedicated = estimateDedicatedLines(p) + estimateAcLines(p);
+      const dedicated = estimateDedicatedLines(p);
       const small = Math.max(lines - dedicated, 2);
       const big = dedicated;
       const out = [{ materialId: 'breaker-16', qty: small }];

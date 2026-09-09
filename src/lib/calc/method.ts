@@ -11,7 +11,6 @@ export const METHOD = {
   /** Метры кабеля */
   cablePerSocketM: 6,
   cablePerDedicatedLineM: 12,
-  cablePerAcM: 15,
   cablePerLightPointM: 5,
   cablePerAreaM: 1.2,
   inputCableM: 10,

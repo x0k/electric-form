@@ -1,6 +1,6 @@
 import { METHOD } from '../method';
 import {
-  estimateAcLines,
+  estimateConditionerQty,
   estimatePanelLines,
   estimateSockets,
 } from '../estimate';
@@ -58,11 +58,11 @@ export const mountingRules: Rule[] = [
     label: 'Закладные под кондиционеры',
     category: 'mounting',
     stage: 'rough',
-    when: (p) => p.ac.chaseNeeded && estimateAcLines(p) > 0,
+    when: (p) => p.power.conditionerChase && estimateConditionerQty(p) > 0,
     apply: (p) => [
       {
         materialId: 'corr-25',
-        qty: estimateAcLines(p) * METHOD.chasePerAcM,
+        qty: estimateConditionerQty(p) * METHOD.chasePerAcM,
       },
     ],
   },

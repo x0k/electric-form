@@ -22,7 +22,6 @@
   import { STEPS } from '#lib/forms/steps';
   import { ProjectSchema } from '#lib/project/schemas';
   import type { Project } from '#lib/project/types';
-  import AcStep from './steps/AcStep.svelte';
   import GeneralStep from './steps/GeneralStep.svelte';
   import LightingStep from './steps/LightingStep.svelte';
   import LowVoltageStep from './steps/LowVoltageStep.svelte';
@@ -151,10 +150,6 @@
   );
   const totalErrors = $derived(stepErrCounts.reduce((a, n) => a + n, 0));
 
-  /** Первый незаполненный этап; если все посещены — «Итог». */
-  const nextTodo = $derived(STEPS.findIndex((_, i) => !visited.has(i)));
-  const nextTarget = $derived(nextTodo === -1 ? STEPS.length - 1 : nextTodo);
-
   let menuOpen = $state(false);
 
   async function goAndClose(to: number) {
@@ -223,9 +218,6 @@
         {#if STEPS[step].id === 'general'}
           <GeneralStep {form} {view} />
         {:else if STEPS[step].id === 'power'}
-          <h2 class="mb-2 font-semibold">Кондиционеры</h2>
-          <AcStep {form} {view} />
-          <h2 class="mt-4 mb-2 font-semibold">Силовые потребители</h2>
           <PowerStep {form} {view} />
         {:else if STEPS[step].id === 'lowvoltage'}
           <LowVoltageStep {form} {view} />
@@ -249,13 +241,7 @@
       </div>
     </div>
 
-    <WizardBar
-      {step}
-      {nextTodo}
-      {nextTarget}
-      onPrev={() => go(step - 1)}
-      onNext={() => go(nextTarget)}
-    />
+    <WizardBar {step} onPrev={() => go(step - 1)} onNext={() => go(step + 1)} />
   </div>
 
   <StepsMenu

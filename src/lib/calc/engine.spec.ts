@@ -22,8 +22,11 @@ describe('engine v1', () => {
   it('кондиционеры и реле напряжения увеличивают итог', () => {
     const base = createDefaultProject('base');
     const mod = createDefaultProject('mod');
-    mod.ac.count = 3;
-    mod.ac.dedicatedLines = true;
+    const cond = mod.power.consumers.find((c) => c.kind === 'conditioner')!;
+    cond.present = true;
+    cond.qty = 3;
+    cond.dedicatedLine = true;
+    mod.power.conditionerChase = true;
     mod.panel.options.voltageRelay = true;
     mod.panel.options.spd = true;
     const rb = calculate(base, SEED_CATALOG);
