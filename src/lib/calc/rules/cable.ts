@@ -1,0 +1,60 @@
+import { METHOD } from '../method';
+import {
+  estimateAcLines,
+  estimateDedicatedLines,
+  estimateLightPoints,
+  estimateSockets,
+} from '../estimate';
+import type { Rule } from '../types';
+
+export const cableRules: Rule[] = [
+  {
+    id: 'cable-power',
+    label: 'Силовой кабель',
+    category: 'cable',
+    apply: (p) => {
+      const sockets = estimateSockets(p);
+      const qty =
+        sockets * METHOD.cablePerSocketM +
+        estimateDedicatedLines(p) * METHOD.cablePerDedicatedLineM +
+        estimateAcLines(p) * METHOD.cablePerAcM;
+      return [{ materialId: 'cable-vvg-3x2.5', qty: Math.ceil(qty) }];
+    },
+  },
+  {
+    id: 'cable-light',
+    label: 'Кабель освещения',
+    category: 'cable',
+    apply: (p) => {
+      const qty =
+        estimateLightPoints(p) * METHOD.cablePerLightPointM +
+        p.general.areaM2 * METHOD.cablePerAreaM;
+      return [{ materialId: 'cable-vvg-3x1.5', qty: Math.ceil(qty) }];
+    },
+  },
+  {
+    id: 'cable-input',
+    label: 'Ввод в квартиру',
+    category: 'cable',
+    apply: (p) => [
+      {
+        materialId:
+          p.panel.phases === '3' ? 'cable-vvg-5x6' : 'cable-vvg-3x2.5',
+        qty: METHOD.inputCableM,
+      },
+    ],
+  },
+  {
+    id: 'cable-corrugation',
+    label: 'Гофра под кабель',
+    category: 'mounting',
+    apply: (p) => {
+      const sockets = estimateSockets(p);
+      const qty =
+        (sockets * METHOD.cablePerSocketM +
+          estimateLightPoints(p) * METHOD.cablePerLightPointM) *
+        0.8;
+      return [{ materialId: 'corr-20', qty: Math.ceil(qty) }];
+    },
+  },
+];

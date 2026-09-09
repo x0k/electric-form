@@ -8,27 +8,12 @@ importers:
 
   .:
     dependencies:
+      '@formisch/svelte':
+        specifier: ^1.0.0
+        version: 1.0.0(svelte@5.57.0(@typescript-eslint/types@8.70.0))(typescript@6.0.3)(valibot@1.4.2(typescript@6.0.3))
       '@lucide/svelte':
         specifier: ^1.0.0
         version: 1.42.0(svelte@5.57.0(@typescript-eslint/types@8.70.0))
-      '@sjsf/ajv8-validator':
-        specifier: ^3.8.1
-        version: 3.8.1(@sjsf/form@3.8.1(@standard-schema/spec@1.1.0)(esm-env@1.2.2)(svelte@5.57.0(@typescript-eslint/types@8.70.0)))(ajv@8.20.0)
-      '@sjsf/daisyui5-theme':
-        specifier: ^3.8.1
-        version: 3.8.1(@sjsf/form@3.8.1(@standard-schema/spec@1.1.0)(esm-env@1.2.2)(svelte@5.57.0(@typescript-eslint/types@8.70.0)))(daisyui@5.7.28)(pikaday@1.8.2)(svelte@5.57.0(@typescript-eslint/types@8.70.0))
-      '@sjsf/form':
-        specifier: ^3.5.0
-        version: 3.8.1(@standard-schema/spec@1.1.0)(esm-env@1.2.2)(svelte@5.57.0(@typescript-eslint/types@8.70.0))
-      '@sjsf/lucide-icons':
-        specifier: ^3.8.1
-        version: 3.8.1(@lucide/svelte@1.42.0(svelte@5.57.0(@typescript-eslint/types@8.70.0)))(@sjsf/form@3.8.1(@standard-schema/spec@1.1.0)(esm-env@1.2.2)(svelte@5.57.0(@typescript-eslint/types@8.70.0)))(svelte@5.57.0(@typescript-eslint/types@8.70.0))
-      ajv:
-        specifier: ^8.17.0
-        version: 8.20.0
-      ajv-formats:
-        specifier: ^3.0.1
-        version: 3.0.1(ajv@8.20.0)
       daisyui:
         specifier: ^5.4.0
         version: 5.7.28
@@ -38,6 +23,9 @@ importers:
       svelte:
         specifier: ^5.34.8
         version: 5.57.0(@typescript-eslint/types@8.70.0)
+      valibot:
+        specifier: ^1.4.2
+        version: 1.4.2(typescript@6.0.3)
     devDependencies:
       '@eslint/js':
         specifier: ^10.0.1
@@ -75,9 +63,6 @@ importers:
       globals:
         specifier: ^17.6.0
         version: 17.12.0
-      json-schema-to-ts:
-        specifier: ^3.1.1
-        version: 3.1.1
       playwright:
         specifier: ^1.60.0
         version: 1.63.0
@@ -113,10 +98,6 @@ importers:
         version: 2.2.1(svelte@5.57.0(@typescript-eslint/types@8.70.0))(vitest@4.1.11)
 
 packages:
-
-  '@babel/runtime@7.29.7':
-    resolution: {integrity: sha512-Nq8OhGWiZIZGV6hLHoyAKLLcJihP/xFeBMGJoUrxTX2psI8dCifzLhZISFb+VWS3wFMRDmCGw5R+dOySCqPLhw==}
-    engines: {node: '>=6.9.0'}
 
   '@blazediff/core@1.9.1':
     resolution: {integrity: sha512-ehg3jIkYKulZh+8om/O25vkvSsXXwC+skXmyA87FFx6A/45eqOkZsBltMw/TVteb0mloiGT8oGRTcjRAz66zaA==}
@@ -165,6 +146,16 @@ packages:
   '@eslint/plugin-kit@0.7.3':
     resolution: {integrity: sha512-IkO+/KEUvwbVpiURZg+P7zF74z5Jxe0UgJxVni+RtoHQ6IZieXaO02kmadomap/q+l6bc/jdPGGqTjhuZnuz1Q==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
+
+  '@formisch/svelte@1.0.0':
+    resolution: {integrity: sha512-6S7OSvpc8wJMWTjZ4QuYLE8De+CZwIahVQSp9m+sR77IWxFpfjlsG2EuGGZ9YRVObHzqdZ0eEbEOj5ddTK/Q9A==}
+    peerDependencies:
+      svelte: '>=5.29 <6'
+      typescript: '>=5 <8'
+      valibot: '>=1.4.1 <2'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
 
   '@humanfs/core@0.19.2':
     resolution: {integrity: sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA==}
@@ -325,61 +316,6 @@ packages:
 
   '@rolldown/pluginutils@1.0.1':
     resolution: {integrity: sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw==}
-
-  '@sjsf/ajv8-validator@3.8.1':
-    resolution: {integrity: sha512-WSrgaaPrPfFOWBLVNP6YYRei7EwTIAFiZ8I00JCFIukbjUXoh3uKWueBEeB6VrMrI3ApCN4uXwr7o1QoO/gkFQ==}
-    peerDependencies:
-      '@sjsf/form': ^3.5.0
-      ajv: ^8.17.0
-
-  '@sjsf/basic-theme@3.8.1':
-    resolution: {integrity: sha512-I76bsywdqXuFYl11F7d3uUy+42GWOS+jlfAbdWHS/nAScMIb6o8CZN/eze/fquFXVH2/OoUy9dBM/b9kTV4vew==}
-    peerDependencies:
-      '@sjsf/form': ^3.5.0
-      svelte: ^5.34.8
-
-  '@sjsf/daisyui5-theme@3.8.1':
-    resolution: {integrity: sha512-ricKDRNLSXuve/IGr+mRh9W4u8gvPjKid6/oNnrFc2iVKV+/COwI9fOvKFcD+AQLOvThvNK/QojAWIeHcYQ6fw==}
-    peerDependencies:
-      '@sjsf/form': ^3.5.0
-      cally: ^0.8.0 || ^0.9.0
-      daisyui: ^5.4.0
-      pikaday: ^1.8.2
-      svelte: ^5.34.8
-      vanilla-calendar-pro: ^3.0.0
-    peerDependenciesMeta:
-      cally:
-        optional: true
-      pikaday:
-        optional: true
-      vanilla-calendar-pro:
-        optional: true
-
-  '@sjsf/form@3.8.1':
-    resolution: {integrity: sha512-cpO+q+sMwVPx9a8XgKsOdPxaq1Lf9EqUHn1K0Vm2Esz5JczRMaP1wABpPGswccaXwXRl6udiGiMtckGZnFMAsw==}
-    peerDependencies:
-      '@standard-schema/spec': ^1.1.0
-      '@types/json-schema-merge-allof': ^0.6.0
-      esm-env: ^1.2.0
-      json-schema-merge-allof: ^0.8.0
-      json-schema-typed: ^8.0.0
-      svelte: ^5.34.8
-    peerDependenciesMeta:
-      '@standard-schema/spec':
-        optional: true
-      '@types/json-schema-merge-allof':
-        optional: true
-      json-schema-merge-allof:
-        optional: true
-      json-schema-typed:
-        optional: true
-
-  '@sjsf/lucide-icons@3.8.1':
-    resolution: {integrity: sha512-0k3VjSp9ahOB0uZ8H1zWs+eHwHLvp/rWNdyWd5SN9RWyuuzO5DiQ1RPiZS6PIkKtllzAhmSb2sxfan3R5IrELw==}
-    peerDependencies:
-      '@lucide/svelte': '>=0.479.0 <1.0.0 || ^1.0.0'
-      '@sjsf/form': ^3.5.0
-      svelte: ^5.34.8
 
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
@@ -648,19 +584,8 @@ packages:
     engines: {node: '>=0.4.0'}
     hasBin: true
 
-  ajv-formats@3.0.1:
-    resolution: {integrity: sha512-8iUql50EUR+uUcdRQ3HDqa6EVyo3docL8g5WJ3FNcWmu62IbkGUue/pEyLBW8VGKKucTPgqeks4fIU1DA4yowQ==}
-    peerDependencies:
-      ajv: ^8.0.0
-    peerDependenciesMeta:
-      ajv:
-        optional: true
-
   ajv@6.15.0:
     resolution: {integrity: sha512-fgFx7Hfoq60ytK2c7DhnF8jIvzYgOMxfugjLOSMHjLIPgenqa7S7oaagATUq99mV6IYvN2tRmC0wnTYX6iPbMw==}
-
-  ajv@8.20.0:
-    resolution: {integrity: sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA==}
 
   aria-query@5.3.1:
     resolution: {integrity: sha512-Z/ZeOgVl7bcSYZ/u/rh0fOpvEpq//LZmdbkXyc7syVzjPAhfOa9ebsdTSjEBDU4vs5nC98Kfduj1uFo0qyET3g==}
@@ -847,9 +772,6 @@ packages:
   fast-levenshtein@2.0.6:
     resolution: {integrity: sha512-DCXu6Ifhqcks7TZKY3Hxp3y6qphY5SJZmrWMDrKcERSOXWQdMhU9Ig/PYrzyw/ul9jOIyh0N4M0tbC5hodg8dw==}
 
-  fast-uri@3.1.7:
-    resolution: {integrity: sha512-dOvZVzjdZdz7phd9v6jCbwxrBW3fK6n8Rc0CtdmM4bumzMnxywBYhuph6J819RRw/ku+rLbelwfMunktuzVVHg==}
-
   fdir@6.5.0:
     resolution: {integrity: sha512-tIbYtZbucOs0BRGqPJkshJUYdL+SDH7dVM8gjy+ERp3WAUjLEFJE+02kanyHtwjWOnwrKYBiwAmM0p4kLJAnXg==}
     engines: {node: '>=12.0.0'}
@@ -932,22 +854,11 @@ packages:
     resolution: {integrity: sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ==}
     hasBin: true
 
-  json-schema-to-ts@3.1.1:
-    resolution: {integrity: sha512-+DWg8jCJG2TEnpy7kOm/7/AxaYoaRbjVB4LFZLySZlWn8exGs3A4OLJR966cVvU26N7X9TWxl+Jsw7dzAqKT6g==}
-    engines: {node: '>=16'}
-
   json-schema-traverse@0.4.1:
     resolution: {integrity: sha512-xbbCH5dCYU5T8LcEhhuh7HJ88HXuW3qsI3Y0zOZFKfZEHcpWiHU/Jxzk629Brsab/mMiHQti9wMP+845RPe3Vg==}
 
-  json-schema-traverse@1.0.0:
-    resolution: {integrity: sha512-NM8/P9n3XjXhIZn1lLhkFaACTOURQXjWhV4BA/RnOv8xvgqtqpAX9IO4mRQxSx1Rlo4tqzeqb0sOlruaOy3dug==}
-
   json-stable-stringify-without-jsonify@1.0.1:
     resolution: {integrity: sha512-Bdboy+l7tA3OGW6FjyFHWkP5LuByj1Tk33Ljyq0axyzdk9//JSi2u3fP1QSmd1KNwq6VOKYGlAu87CisVir6Pw==}
-
-  jsonpointer@5.0.1:
-    resolution: {integrity: sha512-p/nXbhSEcu3pZRdkW1OfJhpsVtW1gd4Wa1fnQc9YLiTfAjn0312eMKimbdIQzuZl9aa9xUGaRlP9T/CJE/ditQ==}
-    engines: {node: '>=0.10.0'}
 
   keyv@5.6.0:
     resolution: {integrity: sha512-CYDD3SOtsHtyXeEORYRx2qBtpDJFjRTGXUtmNEMGyzYOKj1TE3tycdlho7kA1Ufx9OYWZzg52QFBGALTirzDSw==}
@@ -1313,10 +1224,6 @@ packages:
     resolution: {integrity: sha512-GDhwkLfywWL2s6vEjyhri+eXmfH6j1L7JE27WhqLeYzoh/A3DBaYGEj2H/HFZCn/kMfim73FXxEJTw06WtxQwg==}
     engines: {node: '>= 14.18.0'}
 
-  require-from-string@2.0.2:
-    resolution: {integrity: sha512-Xf0nWe6RseziFMu+Ap9biiUbmplq6S9/p+7w7YXP/JBHhrUDDUhwa+vANyubuqfZWTveU//DYVGsDG7RKL/vEw==}
-    engines: {node: '>=0.10.0'}
-
   rolldown@1.2.7:
     resolution: {integrity: sha512-g0EtLvBjTUB7jhyV0S/TCup3v/XSVl45vUIGbOGU4QPiyjTenCe4mKuFvW9fEgYmS2Fo42AUssRmNuMziXdrig==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -1403,9 +1310,6 @@ packages:
     resolution: {integrity: sha512-sf4i37nQ2LBx4m3wB74y+ubopq6W/dIzXg0FDGjsYnZHVa1Da8FH853wlL2gtUhg+xJXjfk3kUZS3BRoQeoQBQ==}
     engines: {node: '>=6'}
 
-  ts-algebra@2.0.0:
-    resolution: {integrity: sha512-FPAhNPFMrkwz76P7cdjdmiShwMynZYN6SgOujD1urY4oNm80Ou9oMdmbR45LotcKOXoy7wSmHkRFE6Mxbrhefw==}
-
   ts-api-utils@2.5.0:
     resolution: {integrity: sha512-OJ/ibxhPlqrMM0UiNHJ/0CKQkoKF243/AEmplt3qpRgkW8VG7IfOS41h7V8TjITqdByHzrjcS/2si+y4lIh8NA==}
     engines: {node: '>=18.12'}
@@ -1436,6 +1340,14 @@ packages:
 
   util-deprecate@1.0.2:
     resolution: {integrity: sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==}
+
+  valibot@1.4.2:
+    resolution: {integrity: sha512-gjdCvJ6d3RyHAneqxMYMW9QMCwYMb3jpOO0IyHZV1bnRHFBHrX3VkIILt5XYR0WhwHiH7Mty8ovuPZ/O3gamrg==}
+    peerDependencies:
+      typescript: '>=5'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
 
   vite@8.2.2:
     resolution: {integrity: sha512-cFKLV/PRgAUlIRm5WjMjJ86jrftzpqcgH+Us+DS8mI3CDNiH30Whrz8uHL3+MOLPAgqbMBAqWdAHAphOAM+z/Q==}
@@ -1574,8 +1486,6 @@ packages:
 
 snapshots:
 
-  '@babel/runtime@7.29.7': {}
-
   '@blazediff/core@1.9.1': {}
 
   '@cacheable/memory@2.2.0':
@@ -1623,6 +1533,13 @@ snapshots:
     dependencies:
       '@eslint/core': 1.2.1
       levn: 0.4.1
+
+  '@formisch/svelte@1.0.0(svelte@5.57.0(@typescript-eslint/types@8.70.0))(typescript@6.0.3)(valibot@1.4.2(typescript@6.0.3))':
+    dependencies:
+      svelte: 5.57.0(@typescript-eslint/types@8.70.0)
+      valibot: 1.4.2(typescript@6.0.3)
+    optionalDependencies:
+      typescript: 6.0.3
 
   '@humanfs/core@0.19.2':
     dependencies:
@@ -1725,40 +1642,6 @@ snapshots:
     optional: true
 
   '@rolldown/pluginutils@1.0.1': {}
-
-  '@sjsf/ajv8-validator@3.8.1(@sjsf/form@3.8.1(@standard-schema/spec@1.1.0)(esm-env@1.2.2)(svelte@5.57.0(@typescript-eslint/types@8.70.0)))(ajv@8.20.0)':
-    dependencies:
-      '@sjsf/form': 3.8.1(@standard-schema/spec@1.1.0)(esm-env@1.2.2)(svelte@5.57.0(@typescript-eslint/types@8.70.0))
-      ajv: 8.20.0
-
-  '@sjsf/basic-theme@3.8.1(@sjsf/form@3.8.1(@standard-schema/spec@1.1.0)(esm-env@1.2.2)(svelte@5.57.0(@typescript-eslint/types@8.70.0)))(svelte@5.57.0(@typescript-eslint/types@8.70.0))':
-    dependencies:
-      '@sjsf/form': 3.8.1(@standard-schema/spec@1.1.0)(esm-env@1.2.2)(svelte@5.57.0(@typescript-eslint/types@8.70.0))
-      svelte: 5.57.0(@typescript-eslint/types@8.70.0)
-
-  '@sjsf/daisyui5-theme@3.8.1(@sjsf/form@3.8.1(@standard-schema/spec@1.1.0)(esm-env@1.2.2)(svelte@5.57.0(@typescript-eslint/types@8.70.0)))(daisyui@5.7.28)(pikaday@1.8.2)(svelte@5.57.0(@typescript-eslint/types@8.70.0))':
-    dependencies:
-      '@sjsf/basic-theme': 3.8.1(@sjsf/form@3.8.1(@standard-schema/spec@1.1.0)(esm-env@1.2.2)(svelte@5.57.0(@typescript-eslint/types@8.70.0)))(svelte@5.57.0(@typescript-eslint/types@8.70.0))
-      '@sjsf/form': 3.8.1(@standard-schema/spec@1.1.0)(esm-env@1.2.2)(svelte@5.57.0(@typescript-eslint/types@8.70.0))
-      daisyui: 5.7.28
-      svelte: 5.57.0(@typescript-eslint/types@8.70.0)
-    optionalDependencies:
-      pikaday: 1.8.2
-
-  '@sjsf/form@3.8.1(@standard-schema/spec@1.1.0)(esm-env@1.2.2)(svelte@5.57.0(@typescript-eslint/types@8.70.0))':
-    dependencies:
-      '@types/json-schema': 7.0.15
-      esm-env: 1.2.2
-      jsonpointer: 5.0.1
-      svelte: 5.57.0(@typescript-eslint/types@8.70.0)
-    optionalDependencies:
-      '@standard-schema/spec': 1.1.0
-
-  '@sjsf/lucide-icons@3.8.1(@lucide/svelte@1.42.0(svelte@5.57.0(@typescript-eslint/types@8.70.0)))(@sjsf/form@3.8.1(@standard-schema/spec@1.1.0)(esm-env@1.2.2)(svelte@5.57.0(@typescript-eslint/types@8.70.0)))(svelte@5.57.0(@typescript-eslint/types@8.70.0))':
-    dependencies:
-      '@lucide/svelte': 1.42.0(svelte@5.57.0(@typescript-eslint/types@8.70.0))
-      '@sjsf/form': 3.8.1(@standard-schema/spec@1.1.0)(esm-env@1.2.2)(svelte@5.57.0(@typescript-eslint/types@8.70.0))
-      svelte: 5.57.0(@typescript-eslint/types@8.70.0)
 
   '@standard-schema/spec@1.1.0': {}
 
@@ -2056,23 +1939,12 @@ snapshots:
 
   acorn@8.18.0: {}
 
-  ajv-formats@3.0.1(ajv@8.20.0):
-    optionalDependencies:
-      ajv: 8.20.0
-
   ajv@6.15.0:
     dependencies:
       fast-deep-equal: 3.1.3
       fast-json-stable-stringify: 2.1.0
       json-schema-traverse: 0.4.1
       uri-js: 4.4.1
-
-  ajv@8.20.0:
-    dependencies:
-      fast-deep-equal: 3.1.3
-      fast-uri: 3.1.7
-      json-schema-traverse: 1.0.0
-      require-from-string: 2.0.2
 
   aria-query@5.3.1: {}
 
@@ -2258,8 +2130,6 @@ snapshots:
 
   fast-levenshtein@2.0.6: {}
 
-  fast-uri@3.1.7: {}
-
   fdir@6.5.0(picomatch@4.0.7):
     optionalDependencies:
       picomatch: 4.0.7
@@ -2322,18 +2192,9 @@ snapshots:
 
   jiti@2.7.0: {}
 
-  json-schema-to-ts@3.1.1:
-    dependencies:
-      '@babel/runtime': 7.29.7
-      ts-algebra: 2.0.0
-
   json-schema-traverse@0.4.1: {}
 
-  json-schema-traverse@1.0.0: {}
-
   json-stable-stringify-without-jsonify@1.0.1: {}
-
-  jsonpointer@5.0.1: {}
 
   keyv@5.6.0:
     dependencies:
@@ -2562,8 +2423,6 @@ snapshots:
 
   readdirp@4.1.2: {}
 
-  require-from-string@2.0.2: {}
-
   rolldown@1.2.7:
     dependencies:
       '@oxc-project/types': 0.148.0
@@ -2673,8 +2532,6 @@ snapshots:
 
   totalist@3.0.1: {}
 
-  ts-algebra@2.0.0: {}
-
   ts-api-utils@2.5.0(typescript@6.0.3):
     dependencies:
       typescript: 6.0.3
@@ -2703,6 +2560,10 @@ snapshots:
       punycode: 2.3.1
 
   util-deprecate@1.0.2: {}
+
+  valibot@1.4.2(typescript@6.0.3):
+    optionalDependencies:
+      typescript: 6.0.3
 
   vite@8.2.2(@types/node@24.13.3)(jiti@2.7.0):
     dependencies:
