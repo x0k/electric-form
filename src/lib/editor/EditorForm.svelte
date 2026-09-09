@@ -18,6 +18,7 @@
   } from '#lib/catalog/index';
   import { loadOverrides } from '#lib/storage/repo';
   import { createProjectForm } from '#lib/forms/ctx';
+  import { applyDerivedFields, deriveKey } from '#lib/forms/derived';
   import { STEPS } from '#lib/forms/steps';
   import { ProjectSchema } from '#lib/project/schemas';
   import type { Project } from '#lib/project/types';
@@ -45,10 +46,12 @@
 
   // Переход на другой проект (p/[id]) — перебазируем стор.
   let currentId = $state(project.meta.id);
+  let prevDerivedKey = $state<string | null>(null);
   $effect(() => {
     if (project.meta.id !== currentId) {
       currentId = project.meta.id;
       lastValid = project;
+      prevDerivedKey = null;
       reset(form, { initialInput: project });
     }
   });
@@ -78,6 +81,20 @@
     if (parsed.success) lastValid = parsed.output;
   });
   const view: Project = $derived(parsed.success ? parsed.output : lastValid);
+
+  // Производные поля (группы света, двери, ТВ/инет): пересчитываем из
+  // введённых данных, пока поле не тронуто вручную. Первый прогон после
+  // загрузки только запоминает ключ — чужие сохранённые значения не трогаем.
+  $effect(() => {
+    const key = deriveKey(view.general);
+    if (prevDerivedKey === null) {
+      prevDerivedKey = key;
+      return;
+    }
+    if (key === prevDerivedKey) return;
+    prevDerivedKey = key;
+    applyDerivedFields(form, view);
+  });
 
   // Автосейв (дебаунс): валидируем стор, сохраняем только выход схемы.
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -205,7 +222,7 @@
 
       <div class="card mt-3 bg-base-200 p-3">
         {#if STEPS[step].id === 'general'}
-          <GeneralStep {form} />
+          <GeneralStep {form} {view} />
         {:else if STEPS[step].id === 'power'}
           <PowerStep {form} {view} />
         {:else if STEPS[step].id === 'ac'}

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultProject } from '#lib/project/defaults';
+import {
+  deriveDoorsCount,
+  deriveEthernetPoints,
+  deriveLightingGroups,
+  deriveTvOutlets,
+  deriveWifiAP,
+} from '#lib/forms/derived';
 import { parseProject } from '#lib/project/validate';
 
 describe('дефолт проекта', () => {
@@ -7,14 +14,21 @@ describe('дефолт проекта', () => {
     expect(parseProject(createDefaultProject()).ok).toBe(true);
   });
 
-  it('не содержит тихого присутствия: смета строится только из явного ввода', () => {
+  it('производные посчитаны теми же формулами, что живая синхронизация', () => {
     const p = createDefaultProject();
-    // Слаботочка и свет: нули, а не типовые значения.
-    expect(p.lowVoltage.ethernetPoints).toBe(0);
-    expect(p.lowVoltage.tvOutlets).toBe(0);
-    expect(p.lowVoltage.wifiAP).toBe(0);
+    const g = p.general;
+    expect(p.lighting.groups).toBe(deriveLightingGroups(g));
+    expect(g.doorsCount).toBe(deriveDoorsCount(g));
+    expect(p.lowVoltage.tvOutlets).toBe(deriveTvOutlets(g));
+    expect(p.lowVoltage.wifiAP).toBe(deriveWifiAP(g));
+    expect(p.lowVoltage.ethernetPoints).toBe(
+      deriveEthernetPoints(p.lowVoltage.tvOutlets, p.lowVoltage.wifiAP)
+    );
+  });
+
+  it('не содержит тихого присутствия вне производных', () => {
+    const p = createDefaultProject();
     expect(p.lowVoltage.cameras).toBe(0);
-    expect(p.lighting.groups).toBe(0);
     expect(p.lighting.kitchenLed).toBe(false);
     // Потребители: ни один не отмечен, отдельных линий нет.
     expect(p.power.consumers.every((c) => !c.present)).toBe(true);

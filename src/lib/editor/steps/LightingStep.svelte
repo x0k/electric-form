@@ -1,12 +1,12 @@
 <script lang="ts">
   import type { ProjectForm } from '#lib/forms/ctx';
+  import { deriveLightingGroups } from '#lib/forms/derived';
   import NumberField from '#lib/forms/fields/NumberField.svelte';
   import SegmentedField from '#lib/forms/fields/SegmentedField.svelte';
   import ToggleField from '#lib/forms/fields/ToggleField.svelte';
   import type { Project } from '#lib/project/types';
 
   let { form, view }: { form: ProjectForm; view: Project } = $props();
-
   const anyLed = $derived(
     view.lighting.kitchenLed ||
       view.lighting.mirrorLed ||
@@ -22,9 +22,11 @@
     {form}
     path={['lighting', 'groups']}
     label="Групп освещения"
-    hint="Обычно = числу комнат + кухня и коридор"
+    hint="Комнаты + кухня + коридор; поправьте при нужде"
     min={0}
     max={40}
+    auto
+    autoValue={deriveLightingGroups(view.general)}
   />
   {#if view.general.kitchenPresent}
     <ToggleField

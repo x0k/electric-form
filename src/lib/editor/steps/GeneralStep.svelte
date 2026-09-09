@@ -1,12 +1,14 @@
 <script lang="ts">
   import type { ProjectForm } from '#lib/forms/ctx';
+  import { deriveDoorsCount } from '#lib/forms/derived';
   import NumberField from '#lib/forms/fields/NumberField.svelte';
   import SegmentedField from '#lib/forms/fields/SegmentedField.svelte';
   import TextField from '#lib/forms/fields/TextField.svelte';
   import TextareaField from '#lib/forms/fields/TextareaField.svelte';
   import ToggleField from '#lib/forms/fields/ToggleField.svelte';
+  import type { Project } from '#lib/project/types';
 
-  let { form }: { form: ProjectForm } = $props();
+  let { form, view }: { form: ProjectForm; view: Project } = $props();
 </script>
 
 <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -74,9 +76,11 @@
       {form}
       path={['general', 'doorsCount']}
       label="Дверей"
-      hint="Влияет на проходные выключатели"
+      hint="Посчитали из комнат и санузлов"
       min={0}
       max={30}
+      auto
+      autoValue={deriveDoorsCount(view.general)}
     />
     <NumberField
       {form}

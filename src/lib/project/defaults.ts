@@ -1,11 +1,17 @@
 import {
+  deriveDoorsCount,
+  deriveEthernetPoints,
+  deriveLightingGroups,
+  deriveTvOutlets,
+  deriveWifiAP,
+} from '#lib/forms/derived';
+import {
   PANEL_DEFAULTS,
   SCHEMA_VERSION,
   type ConsumerKindSchema,
 } from './schemas';
 import type * as v from 'valibot';
 import type { Project } from './types';
-
 type ConsumerKind = v.InferOutput<typeof ConsumerKindSchema>;
 
 const CONSUMER_KINDS: ConsumerKind[] = [
@@ -63,20 +69,29 @@ export function nowIso(): string {
 
 export function createDefaultProject(name = 'Новая квартира'): Project {
   const ts = nowIso();
+  // Производные считаем сразу теми же формулами, что и живая синхронизация,
+  // чтобы новый проект открывался с осмысленными, а не нулевыми значениями.
+  const generalBase = {
+    areaM2: 60,
+    rooms: 2,
+    bathrooms: 1,
+    kitchenPresent: true,
+    balcony: false,
+    noLayoutMode: true,
+    stage: 'whitebox' as const,
+    doorsCount: 0,
+    socketsEstimate: 0,
+  };
+  const tv = deriveTvOutlets(generalBase);
+  const wifi = deriveWifiAP(generalBase);
+  const general = {
+    ...generalBase,
+    doorsCount: deriveDoorsCount(generalBase),
+  };
   return {
     schemaVersion: SCHEMA_VERSION,
     meta: { id: uid(), name, createdAt: ts, updatedAt: ts, comment: '' },
-    general: {
-      areaM2: 60,
-      rooms: 2,
-      bathrooms: 1,
-      kitchenPresent: true,
-      balcony: false,
-      noLayoutMode: true,
-      stage: 'whitebox',
-      doorsCount: 5,
-      socketsEstimate: 0,
-    },
+    general,
     power: {
       consumers: CONSUMER_KINDS.map((kind) => ({
         kind,
@@ -94,16 +109,16 @@ export function createDefaultProject(name = 'Новая квартира'): Proj
       reserveFuture: false,
     },
     lowVoltage: {
-      ethernetPoints: 0,
-      tvOutlets: 0,
-      wifiAP: 0,
+      ethernetPoints: deriveEthernetPoints(tv, wifi),
+      tvOutlets: tv,
+      wifiAP: wifi,
       poe: false,
       intercom: false,
       cameras: 0,
       nas: false,
     },
     lighting: {
-      groups: 0,
+      groups: deriveLightingGroups(general),
       passThrough: false,
       kitchenLed: false,
       mirrorLed: false,

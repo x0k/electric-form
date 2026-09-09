@@ -1,10 +1,19 @@
 <script lang="ts">
   import type { ProjectForm } from '#lib/forms/ctx';
+  import {
+    deriveEthernetPoints,
+    deriveTvOutlets,
+    deriveWifiAP,
+  } from '#lib/forms/derived';
   import NumberField from '#lib/forms/fields/NumberField.svelte';
   import ToggleField from '#lib/forms/fields/ToggleField.svelte';
   import type { Project } from '#lib/project/types';
 
   let { form, view }: { form: ProjectForm; view: Project } = $props();
+
+  const tvAuto = $derived(deriveTvOutlets(view.general));
+  const wifiAuto = $derived(deriveWifiAP(view.general));
+  const ethAuto = $derived(deriveEthernetPoints(tvAuto, wifiAuto));
 
   const hasWiredPoints = $derived(
     view.lowVoltage.ethernetPoints +
@@ -25,6 +34,8 @@
     hint="Розетки для компьютера, ТВ, принтера"
     min={0}
     max={40}
+    auto
+    autoValue={ethAuto}
   />
   <NumberField
     {form}
@@ -32,6 +43,8 @@
     label="ТВ-розеток"
     min={0}
     max={20}
+    auto
+    autoValue={tvAuto}
   />
   <NumberField
     {form}
@@ -40,6 +53,8 @@
     hint="Потолочные точки доступа"
     min={0}
     max={10}
+    auto
+    autoValue={wifiAuto}
   />
   <NumberField
     {form}
