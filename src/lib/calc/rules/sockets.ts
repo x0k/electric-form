@@ -15,12 +15,13 @@ export const socketsRules: Rule[] = [
     category: 'sockets',
     stage: 'finish',
     apply: (p) => {
-      if (p.lighting.passThrough) {
-        return [
-          { materialId: 'switch-pass', qty: Math.max(p.lighting.groups, 1) },
-        ];
-      }
-      return [{ materialId: 'switch-1', qty: Math.max(p.lighting.groups, 1) }];
+      // Проходные вытесняют обычные один к одному из общего числа групп.
+      const pass = p.lighting.passThroughQty ?? 0;
+      const out = [];
+      if (pass > 0) out.push({ materialId: 'switch-pass', qty: pass });
+      const plain = Math.max(p.lighting.groups - pass, 0);
+      if (plain > 0) out.push({ materialId: 'switch-1', qty: plain });
+      return out;
     },
   },
   {
@@ -28,11 +29,10 @@ export const socketsRules: Rule[] = [
     label: 'Диммеры',
     category: 'lighting',
     stage: 'finish',
-    when: (p) => p.lighting.dimming,
     apply: (p) => [
       {
         materialId: 'switch-dim',
-        qty: Math.max(1, Math.ceil(p.lighting.groups / 3)),
+        qty: p.lighting.dimmerQty ?? 0,
       },
     ],
   },
@@ -41,18 +41,14 @@ export const socketsRules: Rule[] = [
     label: 'Подсветка',
     category: 'lighting',
     stage: 'finish',
-    when: (p) =>
-      p.lighting.kitchenLed || p.lighting.mirrorLed || p.lighting.decorLed,
     apply: (p) => {
       const out = [];
-      if (p.lighting.kitchenLed)
-        out.push({ materialId: 'led-kitchen', qty: 1 });
-      if (p.lighting.mirrorLed)
-        out.push({
-          materialId: 'led-mirror',
-          qty: Math.max(p.general.bathrooms, 1),
-        });
-      if (p.lighting.decorLed) out.push({ materialId: 'led-decor', qty: 1 });
+      const kitchen = p.lighting.ledKitchenQty ?? 0;
+      if (kitchen > 0) out.push({ materialId: 'led-kitchen', qty: kitchen });
+      const mirror = p.lighting.ledMirrorQty ?? 0;
+      if (mirror > 0) out.push({ materialId: 'led-mirror', qty: mirror });
+      const decor = p.lighting.ledDecorQty ?? 0;
+      if (decor > 0) out.push({ materialId: 'led-decor', qty: decor });
       const zones = estimateLedZones(p);
       if (isPushLed(p)) {
         out.push({ materialId: 'led-driver-push', qty: zones });

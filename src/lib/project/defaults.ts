@@ -5,11 +5,7 @@ import {
   deriveTvOutlets,
   deriveWifiAP,
 } from '#lib/forms/derived';
-import {
-  PANEL_DEFAULTS,
-  SCHEMA_VERSION,
-  type ConsumerKindSchema,
-} from './schemas';
+import { PANEL_DEFAULTS, type ConsumerKindSchema } from './schemas';
 import type * as v from 'valibot';
 import type { Project } from './types';
 type ConsumerKind = v.InferOutput<typeof ConsumerKindSchema>;
@@ -89,7 +85,6 @@ export function createDefaultProject(name = 'Новая квартира'): Proj
     doorsCount: deriveDoorsCount(generalBase),
   };
   return {
-    schemaVersion: SCHEMA_VERSION,
     meta: { id: uid(), name, createdAt: ts, updatedAt: ts, comment: '' },
     general,
     power: {
@@ -119,11 +114,6 @@ export function createDefaultProject(name = 'Новая квартира'): Proj
     },
     lighting: {
       groups: deriveLightingGroups(general),
-      passThrough: false,
-      kitchenLed: false,
-      mirrorLed: false,
-      decorLed: false,
-      dimming: false,
       smart: false,
       ledPanel: false,
       ledControl: 'triac',
@@ -138,14 +128,9 @@ export function createDefaultProject(name = 'Новая квартира'): Proj
       supRequired: true,
     },
     sensors: {
-      leakage: false,
-      valves: false,
-      smoke: false,
-      motion: false,
       openSensor: false,
       temp: false,
       smartHome: false,
-      curtains: false,
     },
     panel: {
       phases: '1',

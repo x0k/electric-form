@@ -10,29 +10,22 @@ async function subgroup() {
 }
 
 describe('LightingStep лента', () => {
-  it('подгруппа появляется с первой подсветкой, push прячет плавный пуск', async () => {
+  it('подгруппа появляется с первым комплектом, push прячет плавный пуск', async () => {
     await render(LightingStepHarness);
 
-    // Ленты нет: только число групп и подсказка.
+    // Ленты нет: подгруппы нет.
     expect((await (await subgroup()).elements()).length).toBe(0);
 
-    // Включаем подсветку кухни и диммирование (группы: 0 → 1 степпером).
-    await page.getByRole('checkbox', { name: 'Подсветка кухни' }).click();
-    await page.getByRole('button', { name: 'Групп освещения: больше' }).click();
+    // Указываем кухонный комплект (4-й спинбуттон: группы, проходные,
+    // диммеры, кухня) → появляется подгруппа с управлением.
+    await page.getByRole('spinbutton').nth(3).fill('1');
 
     await expect.element(await subgroup()).toBeVisible();
     await expect
       .element(page.getByText('Отдельный щит под ленту'))
       .toBeVisible();
-    await expect.element(page.getByText('Плавный пуск')).toBeVisible();
-
-    // Управления лентой ещё нет — диммирование выключено.
-    expect((await page.getByText('Управление лентой').elements()).length).toBe(
-      0
-    );
-
-    await page.getByRole('checkbox', { name: 'Диммирование' }).click();
     await expect.element(page.getByText('Управление лентой')).toBeVisible();
+    await expect.element(page.getByText('Плавный пуск')).toBeVisible();
 
     await page.getByRole('radio', { name: 'Push-кнопка' }).click();
     // При push плавный пуск не предлагается.

@@ -1,20 +1,22 @@
 <script lang="ts">
   import type { ProjectForm } from '#lib/forms/ctx';
-  import { deriveLightingGroups } from '#lib/forms/derived';
+  import {
+    deriveLightingGroups,
+    fillProcurementBlanks,
+  } from '#lib/forms/derived';
   import NumberField from '#lib/forms/fields/NumberField.svelte';
   import SegmentedField from '#lib/forms/fields/SegmentedField.svelte';
   import ToggleField from '#lib/forms/fields/ToggleField.svelte';
   import type { Project } from '#lib/project/types';
 
   let { form, view }: { form: ProjectForm; view: Project } = $props();
+
   const anyLed = $derived(
-    view.lighting.kitchenLed ||
-      view.lighting.mirrorLed ||
-      view.lighting.decorLed
+    (view.lighting.ledKitchenQty ?? 0) > 0 ||
+      (view.lighting.ledMirrorQty ?? 0) > 0 ||
+      (view.lighting.ledDecorQty ?? 0) > 0
   );
-  const pushActive = $derived(
-    view.lighting.dimming && anyLed && view.lighting.ledControl === 'push'
-  );
+  const pushActive = $derived(anyLed && view.lighting.ledControl === 'push');
 </script>
 
 <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -28,42 +30,58 @@
     auto
     autoValue={deriveLightingGroups(view.general)}
   />
+  <NumberField
+    {form}
+    path={['lighting', 'passThroughQty']}
+    label="Проходных выключателей, шт"
+    hint="Остальные посчитаются обычными (всего групп: {view.lighting
+      .groups}); пусто = 0"
+    min={0}
+    max={40}
+  />
+  <NumberField
+    {form}
+    path={['lighting', 'dimmerQty']}
+    label="Диммеров, шт"
+    hint="Для закупки (пусто = 0)"
+    min={0}
+    max={40}
+  />
   {#if view.general.kitchenPresent}
-    <ToggleField
+    <NumberField
       {form}
-      path={['lighting', 'kitchenLed']}
-      label="Подсветка кухни"
+      path={['lighting', 'ledKitchenQty']}
+      label="Кухонных комплектов, шт"
+      hint="Количество для закупки (пусто = 0)"
+      min={0}
+      max={10}
     />
   {/if}
-  {#if view.lighting.groups > 0}
-    <ToggleField
-      {form}
-      path={['lighting', 'passThrough']}
-      label="Проходные выключатели"
-      hint="Управление из двух мест (коридор, спальня)"
-    />
-    <ToggleField
-      {form}
-      path={['lighting', 'mirrorLed']}
-      label="Подсветка зеркал"
-    />
-    <ToggleField
-      {form}
-      path={['lighting', 'decorLed']}
-      label="Декоративная подсветка"
-    />
-    <ToggleField
-      {form}
-      path={['lighting', 'dimming']}
-      label="Диммирование"
-      hint="Плавная регулировка яркости"
-    />
-    <ToggleField {form} path={['lighting', 'smart']} label="Умный дом (свет)" />
-  {:else}
-    <p class="text-sm opacity-60">
-      Укажите число групп — появятся варианты подсветки и управления.
-    </p>
-  {/if}
+  <NumberField
+    {form}
+    path={['lighting', 'ledMirrorQty']}
+    label="Комплектов для зеркал, шт"
+    hint="Количество для закупки (пусто = 0)"
+    min={0}
+    max={20}
+  />
+  <NumberField
+    {form}
+    path={['lighting', 'ledDecorQty']}
+    label="Декор-комплектов, шт"
+    hint="Количество для закупки (пусто = 0)"
+    min={0}
+    max={10}
+  />
+  <ToggleField {form} path={['lighting', 'smart']} label="Умный дом (свет)" />
+  <button
+    type="button"
+    class="btn btn-outline w-full md:col-span-2"
+    title="Проставит расчётные количества в пустые поля"
+    onclick={() => fillProcurementBlanks(form, view, 'lighting')}
+  >
+    Заполнить количества по расчёту
+  </button>
 </div>
 
 {#if anyLed}
@@ -75,17 +93,15 @@
       label="Отдельный щит под ленту"
       hint="От него тянем отдельные линии — больше кабеля; без него — от общей фазы света"
     />
-    {#if view.lighting.dimming}
-      <SegmentedField
-        {form}
-        path={['lighting', 'ledControl']}
-        label="Управление лентой"
-        options={[
-          { value: 'triac', label: 'Обычный диммер' },
-          { value: 'push', label: 'Push-кнопка' },
-        ]}
-      />
-    {/if}
+    <SegmentedField
+      {form}
+      path={['lighting', 'ledControl']}
+      label="Управление лентой"
+      options={[
+        { value: 'triac', label: 'Обычный диммер' },
+        { value: 'push', label: 'Push-кнопка' },
+      ]}
+    />
     {#if !pushActive}
       <ToggleField
         {form}

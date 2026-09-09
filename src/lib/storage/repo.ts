@@ -1,4 +1,4 @@
-import { migrate } from '#lib/project/migrate';
+import { parseProject } from '#lib/project/validate';
 import type { Project } from '#lib/project/types';
 import { nowIso } from '#lib/project/defaults';
 
@@ -21,7 +21,13 @@ export function loadProjects(): Project[] {
     if (!raw) return [];
     const arr = JSON.parse(raw) as unknown[];
     if (!Array.isArray(arr)) return [];
-    return arr.map((x) => migrate(x));
+    // Строгий парсинг: битые записи пропускаем, совместимости нет.
+    const out: Project[] = [];
+    for (const x of arr) {
+      const parsed = parseProject(x);
+      if (parsed.ok) out.push(parsed.project);
+    }
+    return out;
   } catch {
     return [];
   }

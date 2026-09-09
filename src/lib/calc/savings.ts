@@ -53,14 +53,15 @@ export const SAVING_OPTIONS: SavingOption[] = [
     id: 'dimming',
     label: 'Отказаться от диммирования',
     disable: (p) => {
-      p.lighting.dimming = false;
+      p.lighting.dimmerQty = 0;
+      p.lighting.ledControl = 'triac';
     },
   },
   {
     id: 'curtains',
     label: 'Отказаться от электрокарнизов',
     disable: (p) => {
-      p.sensors.curtains = false;
+      p.sensors.curtainQty = 0;
     },
   },
 ];

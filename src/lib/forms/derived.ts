@@ -1,4 +1,16 @@
 import { getInput, isEdited, reset, setInput } from '@formisch/svelte';
+import {
+  suggestCurtainQty,
+  suggestDimmerQty,
+  suggestLeakQty,
+  suggestLedDecorQty,
+  suggestLedKitchenQty,
+  suggestLedMirrorQty,
+  suggestMotionQty,
+  suggestPassThroughQty,
+  suggestSmokeQty,
+  suggestValveQty,
+} from '#lib/calc/estimate';
 import type { ProjectForm } from '#lib/forms/ctx';
 import type { General, Project } from '#lib/project/types';
 
@@ -72,4 +84,80 @@ export function applyDerivedFields(form: ProjectForm, view: Project): void {
       reset(form, { path, keepInput: true });
     }
   }
+}
+
+export type ProcurementSection = 'lighting' | 'sensors';
+
+interface ProcurementSuggestion {
+  path: readonly [string, string];
+  value: number;
+}
+
+/** Кандидаты кнопки «Заполнить»: формулы для пустых полей раздела. */
+export function suggestProcurement(p: Project): ProcurementSuggestion[] {
+  return [
+    {
+      path: ['lighting', 'passThroughQty'],
+      value: suggestPassThroughQty(p),
+    },
+    {
+      path: ['lighting', 'dimmerQty'],
+      value: suggestDimmerQty(p),
+    },
+    {
+      path: ['lighting', 'ledKitchenQty'],
+      value: suggestLedKitchenQty(),
+    },
+    {
+      path: ['lighting', 'ledMirrorQty'],
+      value: suggestLedMirrorQty(p),
+    },
+    {
+      path: ['lighting', 'ledDecorQty'],
+      value: suggestLedDecorQty(),
+    },
+    {
+      path: ['sensors', 'leakQty'],
+      value: suggestLeakQty(p),
+    },
+    {
+      path: ['sensors', 'valveQty'],
+      value: suggestValveQty(),
+    },
+    {
+      path: ['sensors', 'smokeQty'],
+      value: suggestSmokeQty(p),
+    },
+    {
+      path: ['sensors', 'motionQty'],
+      value: suggestMotionQty(p),
+    },
+    {
+      path: ['sensors', 'curtainQty'],
+      value: suggestCurtainQty(p),
+    },
+  ];
+}
+
+/**
+ * Кнопка «Заполнить количества»: проставляет формулы только в пустые поля
+ * раздела. Введённое остаётся edited — это явные данные,
+ * а не автоматика (reset здесь намеренно нет).
+ * @returns число заполненных полей.
+ */
+export function fillProcurementBlanks(
+  form: ProjectForm,
+  view: Project,
+  section: ProcurementSection
+): number {
+  let filled = 0;
+  for (const s of suggestProcurement(view)) {
+    if (s.path[0] !== section) continue;
+    const path = s.path as any;
+    const cur = getInput(form, { path }) as number | undefined;
+    if (cur !== undefined) continue;
+    setInput(form, { path, input: s.value as never });
+    filled += 1;
+  }
+  return filled;
 }

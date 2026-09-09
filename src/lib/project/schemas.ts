@@ -1,7 +1,10 @@
 import * as v from 'valibot';
 
-/** Текущая версия схемы проекта. Инкрементировать при breaking-изменениях. */
-export const SCHEMA_VERSION = 3 as const;
+/**
+ * Строгая схема: все поля обязательные, кроме закупочных количеств,
+ * где отсутствие (undefined) означает 0. Никаких тихих фолбэков:
+ * неполные данные отклоняются парсером, а не дополняются.
+ */
 
 const int = (min: number, max: number) =>
   v.pipe(v.number(), v.integer(), v.minValue(min), v.maxValue(max));
@@ -9,15 +12,8 @@ const int = (min: number, max: number) =>
 const num = (min: number, max: number) =>
   v.pipe(v.number(), v.minValue(min), v.maxValue(max));
 
-const optNum = (min: number, max: number, fallback: number) =>
-  v.optional(num(min, max), fallback);
-
-const optInt = (min: number, max: number, fallback: number) =>
-  v.optional(int(min, max), fallback);
-
-const optBool = (fallback: boolean) => v.optional(v.boolean(), fallback);
-
-const optStr = (fallback = '') => v.optional(v.string(), fallback);
+/** Закупочное количество: отсутствие = 0 (не нужно). */
+const qty = (min: number, max: number) => v.optional(int(min, max));
 
 export const StageSchema = v.picklist(['rough', 'whitebox', 'lived'] as const);
 export const PhasesSchema = v.picklist(['1', '3'] as const);
@@ -48,87 +44,91 @@ export const MetaSchema = v.object({
   name: v.pipe(v.string(), v.minLength(1)),
   createdAt: v.pipe(v.string(), v.minLength(1)),
   updatedAt: v.pipe(v.string(), v.minLength(1)),
-  comment: optStr(),
+  comment: v.string(),
 });
 
 export const GeneralSchema = v.object({
   areaM2: num(5, 500),
   rooms: int(0, 12),
   bathrooms: int(0, 5),
-  kitchenPresent: optBool(true),
-  balcony: optBool(false),
+  kitchenPresent: v.boolean(),
+  balcony: v.boolean(),
   /** Пока нет точной планировки — считаем по типовым значениям. */
-  noLayoutMode: optBool(false),
-  stage: v.optional(StageSchema, 'whitebox' as const),
-  doorsCount: optInt(0, 30, 5),
+  noLayoutMode: v.boolean(),
+  stage: StageSchema,
+  doorsCount: int(0, 30),
   /** Ручная оценка точек; 0 = автооценка. */
-  socketsEstimate: optInt(0, 300, 0),
+  socketsEstimate: int(0, 300),
 });
 
 export const PowerConsumerSchema = v.object({
   kind: ConsumerKindSchema,
-  present: optBool(false),
-  qty: optInt(0, 10, 0),
-  dedicatedLine: optBool(false),
-  powerKw: optNum(0, 15, 0),
+  present: v.boolean(),
+  qty: int(0, 10),
+  dedicatedLine: v.boolean(),
+  powerKw: num(0, 15),
 });
 
 export const PowerSchema = v.object({
-  consumers: v.optional(v.array(PowerConsumerSchema), []),
+  consumers: v.array(PowerConsumerSchema),
 });
 
 export const AcSchema = v.object({
-  count: optInt(0, 10, 0),
-  dedicatedLines: optBool(true),
-  chaseNeeded: optBool(false),
-  reserveFuture: optBool(false),
+  count: int(0, 10),
+  dedicatedLines: v.boolean(),
+  chaseNeeded: v.boolean(),
+  reserveFuture: v.boolean(),
 });
 
 export const LowVoltageSchema = v.object({
-  ethernetPoints: optInt(0, 40, 0),
-  tvOutlets: optInt(0, 20, 0),
-  wifiAP: optInt(0, 10, 0),
-  poe: optBool(false),
-  intercom: optBool(false),
-  cameras: optInt(0, 16, 0),
-  nas: optBool(false),
+  ethernetPoints: int(0, 40),
+  tvOutlets: int(0, 20),
+  wifiAP: int(0, 10),
+  poe: v.boolean(),
+  intercom: v.boolean(),
+  cameras: int(0, 16),
+  nas: v.boolean(),
 });
 
 export const LightingSchema = v.object({
-  groups: optInt(0, 40, 0),
-  passThrough: optBool(false),
-  kitchenLed: optBool(false),
-  mirrorLed: optBool(false),
-  decorLed: optBool(false),
-  dimming: optBool(false),
-  smart: optBool(false),
+  groups: int(0, 40),
+  /** Проходных из общего числа выключателей; пусто/0 = все обычные. */
+  passThroughQty: qty(0, 40),
+  /** Явные количества комплектов подсветки; пусто/0 = нет. */
+  ledKitchenQty: qty(0, 10),
+  ledMirrorQty: qty(0, 20),
+  ledDecorQty: qty(0, 10),
+  /** Диммеров для комнатного света; пусто/0 = без диммирования. */
+  dimmerQty: qty(0, 40),
+  smart: v.boolean(),
   /** Отдельный щит под ленту: от него тянутся отдельные линии (больше кабеля). */
-  ledPanel: optBool(false),
-  /** Управление лентой при диммировании: обычный диммер или push-кнопка. */
-  ledControl: v.optional(v.picklist(['triac', 'push'] as const), 'triac'),
+  ledPanel: v.boolean(),
+  /** Управление лентой: обычный диммер или push-кнопка. */
+  ledControl: v.picklist(['triac', 'push'] as const),
   /** Плавный пуск ленты (для обычной установки через выключатель/диммер). */
-  ledSoftstart: optBool(false),
+  ledSoftstart: v.boolean(),
 });
 
 export const BathroomsSchema = v.object({
-  washerInBath: optBool(false),
-  dryerInBath: optBool(false),
-  boilerInBath: optBool(false),
-  floorHeatInBath: optBool(false),
-  electricTowel: optBool(false),
+  washerInBath: v.boolean(),
+  dryerInBath: v.boolean(),
+  boilerInBath: v.boolean(),
+  floorHeatInBath: v.boolean(),
+  electricTowel: v.boolean(),
   /** Система уравнивания потенциалов */
-  supRequired: optBool(true),
+  supRequired: v.boolean(),
 });
 
 export const SensorsSchema = v.object({
-  leakage: optBool(false),
-  valves: optBool(false),
-  smoke: optBool(false),
-  motion: optBool(false),
-  openSensor: optBool(false),
-  temp: optBool(false),
-  smartHome: optBool(false),
-  curtains: optBool(false),
+  /** Явные количества; пусто/0 = нет. Степперы видны всегда. */
+  leakQty: qty(0, 30),
+  valveQty: qty(0, 20),
+  smokeQty: qty(0, 30),
+  motionQty: qty(0, 30),
+  openSensor: v.boolean(),
+  temp: v.boolean(),
+  smartHome: v.boolean(),
+  curtainQty: qty(0, 20),
 });
 
 export const PANEL_OPTION_IDS = [
@@ -152,11 +152,9 @@ export const PANEL_OPTION_IDS = [
 ] as const;
 
 export const PanelOptionsSchema = v.object(
-  Object.fromEntries(
-    PANEL_OPTION_IDS.map((id) => [id, optBool(false)])
-  ) as Record<
+  Object.fromEntries(PANEL_OPTION_IDS.map((id) => [id, v.boolean()])) as Record<
     (typeof PANEL_OPTION_IDS)[number],
-    v.OptionalSchema<v.BooleanSchema<undefined>, false>
+    v.BooleanSchema<undefined>
   >
 );
 
@@ -169,38 +167,37 @@ export const PANEL_DEFAULTS: Record<
 >;
 
 export const PanelSchema = v.object({
-  phases: v.optional(PhasesSchema, '1' as const),
-  mainBreakerA: optInt(10, 100, 40),
-  grounding: v.optional(GroundingSchema, 'unknown' as const),
-  inputA: optInt(10, 100, 40),
-  reserveModules: optInt(0, 24, 4),
-  options: v.optional(PanelOptionsSchema, { ...PANEL_DEFAULTS }),
+  phases: PhasesSchema,
+  mainBreakerA: int(10, 100),
+  grounding: GroundingSchema,
+  inputA: int(10, 100),
+  reserveModules: int(0, 24),
+  options: PanelOptionsSchema,
 });
 
 export const WorkSchema = v.object({
-  electricians: optInt(1, 6, 2),
-  complexityK: optNum(0.8, 1.6, 1),
-  uncertaintyK: optNum(1, 1.6, 1.15),
+  electricians: int(1, 6),
+  complexityK: num(0.8, 1.6),
+  uncertaintyK: num(1, 1.6),
 });
 
 export const ScopeSchema = v.object({
   /** Розетки и выключатели покупает/ставит заказчик — исключаем из сметы. */
-  customerSockets: optBool(false),
+  customerSockets: v.boolean(),
 });
 
 export const ProjectSchema = v.object({
-  schemaVersion: v.optional(v.literal(SCHEMA_VERSION), SCHEMA_VERSION),
   meta: MetaSchema,
   general: GeneralSchema,
-  power: v.optional(PowerSchema, { consumers: [] }),
-  ac: v.optional(AcSchema, {}),
-  lowVoltage: v.optional(LowVoltageSchema, {}),
-  lighting: v.optional(LightingSchema, {}),
-  bathrooms: v.optional(BathroomsSchema, {}),
-  sensors: v.optional(SensorsSchema, {}),
-  panel: v.optional(PanelSchema, {}),
-  work: v.optional(WorkSchema, {}),
-  scope: v.optional(ScopeSchema, {}),
+  power: PowerSchema,
+  ac: AcSchema,
+  lowVoltage: LowVoltageSchema,
+  lighting: LightingSchema,
+  bathrooms: BathroomsSchema,
+  sensors: SensorsSchema,
+  panel: PanelSchema,
+  work: WorkSchema,
+  scope: ScopeSchema,
 });
 
 export type PanelOptionId = (typeof PANEL_OPTION_IDS)[number];

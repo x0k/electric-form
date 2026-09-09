@@ -7,17 +7,23 @@ function ledProject() {
   const p = createDefaultProject('led');
   p.general.areaM2 = 60;
   p.lighting.groups = 4;
-  p.lighting.kitchenLed = true;
+  p.lighting.ledKitchenQty = 1;
   return p;
 }
 
 describe('led rules', () => {
-  it('декор-подсветка даёт комплект (тоггл не мёртвый)', () => {
+  it('декор-подсветка даёт комплект только с явным количеством', () => {
+    expect(
+      calculate(ledProject(), SEED_CATALOG).lines.some(
+        (l) => l.materialId === 'led-decor'
+      )
+    ).toBe(false);
     const p = ledProject();
-    p.lighting.decorLed = true;
+    p.lighting.ledDecorQty = 2;
     const r = calculate(p, SEED_CATALOG);
     const decor = r.lines.filter((l) => l.materialId === 'led-decor');
     expect(decor.length).toBe(1);
+    expect(decor[0].qty).toBe(2);
     expect(decor[0].stage).toBe('finish');
   });
 
@@ -43,7 +49,6 @@ describe('led rules', () => {
 
   it('push: драйверы и кнопки вместо софтстарта', () => {
     const p = ledProject();
-    p.lighting.dimming = true;
     p.lighting.ledControl = 'push';
     p.lighting.ledSoftstart = true; // при push игнорируется
     const r = calculate(p, SEED_CATALOG);
@@ -54,7 +59,6 @@ describe('led rules', () => {
 
   it('triac + плавный пуск: модули без драйверов', () => {
     const p = ledProject();
-    p.lighting.dimming = true;
     p.lighting.ledControl = 'triac';
     p.lighting.ledSoftstart = true;
     const r = calculate(p, SEED_CATALOG);

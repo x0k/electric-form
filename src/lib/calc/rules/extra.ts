@@ -61,10 +61,11 @@ export const automationRules: Rule[] = [
     stage: 'finish',
     label: 'Защита от протечек',
     category: 'automation',
-    when: (p) => p.sensors.leakage,
     apply: (p) => [
-      { materialId: 'leak-sensor', qty: Math.max(p.general.bathrooms + 1, 2) },
-      ...(p.sensors.valves ? [{ materialId: 'leak-valve', qty: 2 }] : []),
+      { materialId: 'leak-sensor', qty: p.sensors.leakQty ?? 0 },
+      ...(p.sensors.valveQty != null && p.sensors.valveQty > 0
+        ? [{ materialId: 'leak-valve', qty: p.sensors.valveQty }]
+        : []),
     ],
   },
   {
@@ -72,9 +73,8 @@ export const automationRules: Rule[] = [
     stage: 'finish',
     label: 'Дымовые датчики',
     category: 'automation',
-    when: (p) => p.sensors.smoke,
     apply: (p) => [
-      { materialId: 'smoke-sensor', qty: Math.max(p.general.rooms, 1) },
+      { materialId: 'smoke-sensor', qty: p.sensors.smokeQty ?? 0 },
     ],
   },
   {
@@ -82,11 +82,10 @@ export const automationRules: Rule[] = [
     stage: 'finish',
     label: 'Датчики движения',
     category: 'automation',
-    when: (p) => p.sensors.motion,
     apply: (p) => [
       {
         materialId: 'motion-sensor',
-        qty: Math.max(1, Math.ceil(p.general.rooms / 2)),
+        qty: p.sensors.motionQty ?? 0,
       },
     ],
   },
@@ -95,9 +94,8 @@ export const automationRules: Rule[] = [
     stage: 'finish',
     label: 'Электрокарнизы',
     category: 'automation',
-    when: (p) => p.sensors.curtains,
     apply: (p) => [
-      { materialId: 'curtain-motor', qty: Math.max(p.general.rooms, 1) },
+      { materialId: 'curtain-motor', qty: p.sensors.curtainQty ?? 0 },
     ],
   },
 ];

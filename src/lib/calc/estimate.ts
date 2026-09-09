@@ -13,27 +13,68 @@ export function estimateSockets(p: Project): number {
   );
 }
 
+/**
+ * Предлагаемые количества для кнопки «Заполнить» — чистые формулы,
+ * сами никуда не подставляются. Правило: пустое поле = 0, число = фиксация.
+ * Исключение — обычные выключатели: они структурные, по одному на группу.
+ */
+export function suggestPassThroughQty(p: Project): number {
+  return Math.max(p.lighting.groups, 1);
+}
+
+export function suggestDimmerQty(p: Project): number {
+  return Math.max(1, Math.ceil(p.lighting.groups / 3));
+}
+
+export function suggestLedKitchenQty(): number {
+  return 1;
+}
+
+export function suggestLedMirrorQty(p: Project): number {
+  return Math.max(p.general.bathrooms, 1);
+}
+
+export function suggestLedDecorQty(): number {
+  return 1;
+}
+
+export function suggestLeakQty(p: Project): number {
+  return Math.max(p.general.bathrooms + 1, 2);
+}
+
+export function suggestValveQty(): number {
+  return 2;
+}
+
+export function suggestSmokeQty(p: Project): number {
+  return Math.max(p.general.rooms, 1);
+}
+
+export function suggestMotionQty(p: Project): number {
+  return Math.max(1, Math.ceil(p.general.rooms / 2));
+}
+
+export function suggestCurtainQty(p: Project): number {
+  return Math.max(p.general.rooms, 1);
+}
+
 /** Точек освещения (грубо: 2 на группу). */
 export function estimateLightPoints(p: Project): number {
   return p.lighting.groups * 2;
 }
 
-/** Активные зоны ленты (кухня/зеркала/декор) — для БП, управления и кабеля. */
+/** Активные зоны ленты: комплекты с количеством > 0 (кухня/зеркала/декор). */
 export function estimateLedZones(p: Project): number {
   return [
-    p.lighting.kitchenLed,
-    p.lighting.mirrorLed,
-    p.lighting.decorLed,
+    (p.lighting.ledKitchenQty ?? 0) > 0,
+    (p.lighting.ledMirrorQty ?? 0) > 0,
+    (p.lighting.ledDecorQty ?? 0) > 0,
   ].filter(Boolean).length;
 }
 
-/** Push-диммирование ленты: диммирование включено и выбран push. */
+/** Push-диммирование ленты: выбран push и есть хотя бы одна зона. */
 export function isPushLed(p: Project): boolean {
-  return (
-    p.lighting.dimming &&
-    estimateLedZones(p) > 0 &&
-    p.lighting.ledControl === 'push'
-  );
+  return p.lighting.ledControl === 'push' && estimateLedZones(p) > 0;
 }
 
 /** Количество отдельных силовых линий. */
