@@ -26,7 +26,7 @@
 </script>
 
 <div class="form-control">
-  <label class="label cursor-pointer justify-start gap-3">
+  <label class="label min-h-12 cursor-pointer justify-start gap-3">
     <input
       {...field.props}
       type="checkbox"

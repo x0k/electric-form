@@ -54,4 +54,6 @@ export default defineConfig({
     ],
   },
   ssr: { noExternal: ['@lucide/svelte'] },
+  // .direnv holds nix flake-input symlinks (huge tree) — never watch it.
+  server: { watch: { ignored: ['**/.direnv/**', '**/.git/**'] } },
 });

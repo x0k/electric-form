@@ -2,15 +2,27 @@
   import type { ProjectForm } from '#lib/forms/ctx';
   import NumberField from '#lib/forms/fields/NumberField.svelte';
   import ToggleField from '#lib/forms/fields/ToggleField.svelte';
+  import type { Project } from '#lib/project/types';
 
-  let { form }: { form: ProjectForm } = $props();
+  let { form, view }: { form: ProjectForm; view: Project } = $props();
+
+  const hasWiredPoints = $derived(
+    view.lowVoltage.ethernetPoints +
+      view.lowVoltage.wifiAP +
+      view.lowVoltage.cameras >
+      0
+  );
 </script>
 
+<p class="mb-2 text-sm opacity-70">
+  Интернет, ТВ и видеонаблюдение. Оставьте нули, если не нужно.
+</p>
 <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
   <NumberField
     {form}
     path={['lowVoltage', 'ethernetPoints']}
     label="Ethernet-точек"
+    hint="Розетки для компьютера, ТВ, принтера"
     min={0}
     max={40}
   />
@@ -25,6 +37,7 @@
     {form}
     path={['lowVoltage', 'wifiAP']}
     label="Wi-Fi точек"
+    hint="Потолочные точки доступа"
     min={0}
     max={10}
   />
@@ -35,7 +48,14 @@
     min={0}
     max={16}
   />
-  <ToggleField {form} path={['lowVoltage', 'poe']} label="PoE" />
+  {#if hasWiredPoints}
+    <ToggleField
+      {form}
+      path={['lowVoltage', 'poe']}
+      label="PoE"
+      hint="Питание камер и точек по витой паре"
+    />
+  {/if}
   <ToggleField {form} path={['lowVoltage', 'intercom']} label="Домофон" />
   <ToggleField {form} path={['lowVoltage', 'nas']} label="NAS/сервер" />
 </div>

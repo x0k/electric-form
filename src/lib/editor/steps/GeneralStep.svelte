@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { ProjectForm } from '#lib/forms/ctx';
   import NumberField from '#lib/forms/fields/NumberField.svelte';
-  import SelectField from '#lib/forms/fields/SelectField.svelte';
+  import SegmentedField from '#lib/forms/fields/SegmentedField.svelte';
   import TextField from '#lib/forms/fields/TextField.svelte';
   import TextareaField from '#lib/forms/fields/TextareaField.svelte';
   import ToggleField from '#lib/forms/fields/ToggleField.svelte';
@@ -32,21 +32,7 @@
     min={0}
     max={5}
   />
-  <NumberField
-    {form}
-    path={['general', 'doorsCount']}
-    label="Дверей"
-    min={0}
-    max={30}
-  />
-  <NumberField
-    {form}
-    path={['general', 'socketsEstimate']}
-    label="Точек (0 = авто)"
-    min={0}
-    max={300}
-  />
-  <SelectField
+  <SegmentedField
     {form}
     path={['general', 'stage']}
     label="Стадия объекта"
@@ -67,6 +53,29 @@
     />
   </div>
 </div>
+<details class="collapse-arrow bg-base-100 collapse mt-3">
+  <summary class="collapse-title font-medium"
+    >Точное количество точек (необязательно)</summary
+  >
+  <div class="collapse-content grid grid-cols-1 gap-3 md:grid-cols-2">
+    <NumberField
+      {form}
+      path={['general', 'doorsCount']}
+      label="Дверей"
+      hint="Влияет на проходные выключатели"
+      min={0}
+      max={30}
+    />
+    <NumberField
+      {form}
+      path={['general', 'socketsEstimate']}
+      label="Точек"
+      hint="0 — посчитаем сами по площади"
+      min={0}
+      max={300}
+    />
+  </div>
+</details>
 <div class="mt-3">
   <TextareaField {form} path={['meta', 'comment']} label="Комментарий" />
 </div>

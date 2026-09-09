@@ -209,17 +209,17 @@
         {:else if STEPS[step].id === 'power'}
           <PowerStep {form} {view} />
         {:else if STEPS[step].id === 'ac'}
-          <AcStep {form} />
+          <AcStep {form} {view} />
         {:else if STEPS[step].id === 'lowvoltage'}
-          <LowVoltageStep {form} />
+          <LowVoltageStep {form} {view} />
         {:else if STEPS[step].id === 'lighting'}
-          <LightingStep {form} />
+          <LightingStep {form} {view} />
         {:else if STEPS[step].id === 'bath'}
-          <BathStep {form} />
+          <BathStep {form} {view} />
         {:else if STEPS[step].id === 'sensors'}
-          <SensorsStep {form} />
+          <SensorsStep {form} {view} />
         {:else if STEPS[step].id === 'panel'}
-          <PanelStep {form} />
+          <PanelStep {form} {view} />
         {:else if STEPS[step].id === 'work'}
           <WorkStep {form} />
         {:else}
