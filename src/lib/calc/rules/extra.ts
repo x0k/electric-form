@@ -94,6 +94,34 @@ export const automationRules: Rule[] = [
     category: 'automation',
     apply: (p) => [{ materialId: 'curtain-motor', qty: p.sensors.curtainQty }],
   },
+  {
+    id: 'auto-temp',
+    stage: 'finish',
+    label: 'Датчики температуры',
+    category: 'automation',
+    when: (p) => p.sensors.temp,
+    apply: (p) => [
+      { materialId: 'temp-sensor', qty: Math.max(p.general.rooms, 1) },
+    ],
+  },
+  {
+    id: 'auto-open',
+    stage: 'finish',
+    label: 'Датчики открытия',
+    category: 'automation',
+    when: (p) => p.sensors.openSensor,
+    apply: (p) => [
+      { materialId: 'open-sensor', qty: Math.max(p.general.doorsCount, 1) },
+    ],
+  },
+  {
+    id: 'auto-hub',
+    stage: 'finish',
+    label: 'Контроллер умного дома',
+    category: 'automation',
+    when: (p) => p.sensors.smartHome,
+    apply: () => [{ materialId: 'smarthome-hub', qty: 1 }],
+  },
 ];
 
 export const groundingRules: Rule[] = [

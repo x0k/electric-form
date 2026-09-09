@@ -69,7 +69,12 @@
     min={0}
     max={10}
   />
-  <ToggleField {form} path={['lighting', 'smart']} label="Умный дом (свет)" />
+  <ToggleField
+    {form}
+    path={['lighting', 'smart']}
+    label="Умный дом (свет)"
+    hint="Реле в щите вместо части выключателей: сценарии и управление с телефона"
+  />
   <button
     type="button"
     class="btn btn-outline w-full md:col-span-2"

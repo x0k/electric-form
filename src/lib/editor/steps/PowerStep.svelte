@@ -66,7 +66,10 @@
         </Field>
         <Field of={form} path={['power', 'consumers', i, 'dedicatedLine']}>
           {#snippet children(f)}
-            <label class="label min-h-11 cursor-pointer gap-1.5 text-sm">
+            <label
+              class="label min-h-11 cursor-pointer gap-1.5 text-sm"
+              title="Свой кабель и автомат от щита — не грузит общие розетки"
+            >
               <input
                 {...f.props}
                 type="checkbox"
@@ -78,7 +81,9 @@
           {/snippet}
         </Field>
         <details class="w-full text-sm">
-          <summary class="cursor-pointer py-1 opacity-60"
+          <summary
+            class="cursor-pointer py-1 opacity-60"
+            title="Справочно для электрика; на расчёт не влияет"
             >Мощность (кВт) — необязательно</summary
           >
           <Field of={form} path={['power', 'consumers', i, 'powerKw']}>

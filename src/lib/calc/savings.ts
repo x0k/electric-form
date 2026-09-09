@@ -64,6 +64,20 @@ export const SAVING_OPTIONS: SavingOption[] = [
       p.sensors.curtainQty = 0;
     },
   },
+  {
+    id: 'smartLight',
+    label: 'Умный свет → обычные выключатели',
+    disable: (p) => {
+      p.lighting.smart = false;
+    },
+  },
+  {
+    id: 'smartHub',
+    label: 'Отказаться от контроллера умного дома',
+    disable: (p) => {
+      p.sensors.smartHome = false;
+    },
+  },
 ];
 
 export interface Saving {

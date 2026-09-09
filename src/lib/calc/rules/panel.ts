@@ -15,6 +15,7 @@ export const MODULES: Record<string, number> = {
   'rcbo-16': 2,
   'voltage-relay': 3,
   spd: 4,
+  'relay-smart': 2,
   'contactor-40': 2,
   wattmeter: 3,
   'volt-ind': 1,
@@ -127,6 +128,19 @@ export const panelRules: Rule[] = [
         out.push({ materialId: 'volt-ind', qty: 1 });
       return out;
     },
+  },
+  {
+    id: 'panel-smart-relay',
+    stage: 'rough',
+    label: 'Реле умного света',
+    category: 'panel',
+    when: (p) => p.lighting.smart,
+    apply: (p) => [
+      {
+        materialId: 'relay-smart',
+        qty: Math.max(1, Math.ceil(p.lighting.groups / 2)),
+      },
+    ],
   },
   {
     id: 'panel-box',

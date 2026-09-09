@@ -309,6 +309,34 @@
     "priceRub": 18000
   },
   {
+    "id": "relay-smart",
+    "category": "panel",
+    "name": "Реле умного света (DIN)",
+    "unit": "pcs",
+    "priceRub": 3500
+  },
+  {
+    "id": "temp-sensor",
+    "category": "automation",
+    "name": "Датчик температуры",
+    "unit": "pcs",
+    "priceRub": 1200
+  },
+  {
+    "id": "open-sensor",
+    "category": "automation",
+    "name": "Датчик открытия (окно/дверь)",
+    "unit": "pcs",
+    "priceRub": 800
+  },
+  {
+    "id": "smarthome-hub",
+    "category": "automation",
+    "name": "Контроллер умного дома",
+    "unit": "pcs",
+    "priceRub": 12000
+  },
+  {
     "id": "sup-kit",
     "category": "grounding",
     "name": "СУП: коробка + провод ПВ-1 4мм",

@@ -30,6 +30,7 @@
         {form}
         path={['ac', 'dedicatedLines']}
         label="Отдельные линии"
+        hint="Каждому кондиционеру — свой кабель и автомат"
       />
       <ToggleField
         {form}

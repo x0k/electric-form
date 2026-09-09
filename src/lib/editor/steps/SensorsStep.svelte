@@ -43,7 +43,12 @@
     min={0}
     max={30}
   />
-  <ToggleField {form} path={['sensors', 'temp']} label="Датчики температуры" />
+  <ToggleField
+    {form}
+    path={['sensors', 'temp']}
+    label="Датчики температуры"
+    hint="Для управления отоплением и кондиционером; по одному на комнату"
+  />
   <NumberField
     {form}
     path={['sensors', 'curtainQty']}
@@ -68,13 +73,13 @@
       {form}
       path={['sensors', 'smartHome']}
       label="Умный дом"
-      hint="Общая шина и резерв в щите"
+      hint="Контроллер в слаботочном щите + резерв под автоматику"
     />
     <ToggleField
       {form}
       path={['sensors', 'openSensor']}
       label="Датчики открытия"
-      hint="Окна и двери"
+      hint="На окна и двери; количество возьмём из числа дверей"
     />
   </div>
 </details>

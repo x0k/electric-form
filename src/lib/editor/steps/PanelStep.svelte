@@ -104,21 +104,25 @@
     {form}
     path={['panel', 'options', 'fridgeLine']}
     label="Отдельная линия холодильника"
+    hint="Не обесточится вместе с остальной квартирой"
   />
   <ToggleField
     {form}
     path={['panel', 'options', 'netLine']}
     label="Линия интернета/оборудования"
+    hint="Роутер и NAS переживут общее отключение"
   />
   <ToggleField
     {form}
     path={['panel', 'options', 'reserveBreakers']}
     label="Резервные автоматы"
+    hint="Запасные автоматы уже стоят в щите"
   />
   <ToggleField
     {form}
     path={['panel', 'options', 'extraPanel']}
     label="Доп. щит / слаботочный шкаф"
+    hint="Второй корпус: +место под автоматы и слаботочку"
   />
 </div>
 
@@ -151,32 +155,38 @@
           {form}
           path={['panel', 'options', 'selectiveRcd']}
           label="Селективное УЗО"
+          hint="Отключает только аварийную линию"
         />
       {/if}
       <ToggleField
         {form}
         path={['panel', 'options', 'contactor']}
         label="Контактор"
+        hint="Отключение групп по кнопке — например «выключить всё»"
       />
       <ToggleField
         {form}
         path={['panel', 'options', 'bypass']}
         label="Ручной/авто байпас"
+        hint="Обход реле/стабилизатора на время ремонта"
       />
       <ToggleField
         {form}
         path={['panel', 'options', 'voltIndication']}
         label="Индикация напряжения"
+        hint="Видите напряжение прямо на щите"
       />
       <ToggleField
         {form}
         path={['panel', 'options', 'wattmeter']}
         label="Модульный ваттметр"
+        hint="Считает расход электроэнергии в щите"
       />
       <ToggleField
         {form}
         path={['panel', 'options', 'powerLimit']}
         label="Ограничение мощности"
+        hint="Отключит нагрузку при превышении выделенной мощности"
       />
     </div>
   </div>
