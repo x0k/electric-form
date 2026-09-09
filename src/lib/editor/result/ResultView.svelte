@@ -1,7 +1,13 @@
 <script lang="ts">
-  import { COST_CATEGORIES, COST_CATEGORY_LABELS } from '#lib/catalog/index';
+  import {
+    COST_CATEGORIES,
+    COST_CATEGORY_LABELS,
+    UNIT_LABELS,
+    type CostCategory,
+  } from '#lib/catalog/index';
   import type { CalcResult } from '#lib/calc/types';
   import type { Saving } from '#lib/calc/savings';
+  import { formatSummary } from '#lib/calc/summary';
   import type { Project } from '#lib/project/types';
 
   let {
@@ -20,12 +26,34 @@
     return `${Math.round(n).toLocaleString('ru-RU')} ₽`;
   }
 
+  const linesByCat = $derived.by(() => {
+    const m = new Map<CostCategory, CalcResult['lines']>();
+    for (const l of result.lines) {
+      const arr = m.get(l.category);
+      if (arr) arr.push(l);
+      else m.set(l.category, [l]);
+    }
+    return m;
+  });
+  const visibleCats = $derived(
+    COST_CATEGORIES.filter((c) => (result.categoryTotals[c] ?? 0) > 0)
+  );
+
+  // Раскрытые категории (управляемый details для «развернуть всё»).
+  let openCats = $state<CostCategory[]>([]);
+  function setAll(open: boolean) {
+    openCats = open ? [...visibleCats] : [];
+  }
+  function onToggleCat(c: CostCategory, open: boolean) {
+    openCats = open
+      ? [...new Set([...openCats, c])]
+      : openCats.filter((x) => x !== c);
+  }
+
   function copySummary() {
-    const rows = COST_CATEGORIES.map(
-      (c) => `${COST_CATEGORY_LABELS[c]}: ${fmt(result.categoryTotals[c])}`
-    ).join('\n');
-    const text = `${view.meta.name}\nПлощадь: ${view.general.areaM2} м², комнат: ${view.general.rooms}, санузлов: ${view.general.bathrooms}\n\nМатериалы\n${rows}\nИтого: ${fmt(result.totalRub)} (${fmt(result.rangeRub.min)}–${fmt(result.rangeRub.max)})\n\nСрок: ${result.daysMin}–${result.daysMax} раб. дн.\nПредварительная оценка.`;
-    navigator.clipboard?.writeText(text).catch(() => {});
+    navigator.clipboard
+      ?.writeText(formatSummary(view, result, savings))
+      .catch(() => {});
   }
 </script>
 
@@ -33,7 +61,18 @@
   Площадь: {view.general.areaM2} м² · Комнат: {view.general.rooms} · Санузлов:
   {view.general.bathrooms}
 </div>
-<h3 class="mt-3 font-semibold">Материалы</h3>
+<div class="mt-3 flex items-center justify-between">
+  <h3 class="font-semibold">Материалы</h3>
+  {#if visibleCats.length > 1}
+    <button
+      type="button"
+      class="btn btn-ghost btn-xs"
+      onclick={() => setAll(openCats.length < visibleCats.length)}
+    >
+      {openCats.length < visibleCats.length ? 'Развернуть всё' : 'Свернуть всё'}
+    </button>
+  {/if}
+</div>
 {#if overriddenCount > 0}
   <p class="mt-1 text-xs opacity-60">
     Цены изменены вручную ({overriddenCount}).
@@ -41,25 +80,43 @@
   </p>
 {/if}
 <div class="mt-2 divide-y rounded bg-base-100">
-  {#each COST_CATEGORIES as c (c)}
+  {#each visibleCats as c (c)}
     {@const sum = result.categoryTotals[c]}
-    {#if sum > 0}
-      <details class="p-2">
-        <summary class="flex cursor-pointer justify-between">
-          <span>{COST_CATEGORY_LABELS[c]}</span><span class="font-medium"
-            >{fmt(sum)}</span
-          >
-        </summary>
-        <ul class="mt-1 space-y-0.5 text-sm opacity-80">
-          {#each result.lines.filter((l) => l.category === c) as l (l.materialId + l.ruleId)}
-            <li class="flex justify-between gap-2">
-              <span>{l.materialName} · {l.qtyWithWaste} {l.unit}</span>
-              <span>{fmt(l.sumRub)}</span>
-            </li>
-          {/each}
-        </ul>
-      </details>
-    {/if}
+    {@const lines = linesByCat.get(c) ?? []}
+    <details
+      class="p-2"
+      open={openCats.includes(c)}
+      ontoggle={(e) => onToggleCat(c, e.currentTarget.open)}
+    >
+      <summary class="flex cursor-pointer items-center justify-between gap-2">
+        <span class="min-w-0 flex-1 truncate"
+          >{COST_CATEGORY_LABELS[c]}
+          <span class="badge badge-ghost badge-xs ml-1 align-middle"
+            >{lines.length}</span
+          ></span
+        ><span class="shrink-0 font-medium tabular-nums">{fmt(sum)}</span>
+      </summary>
+      <ul class="mt-1 space-y-1.5 text-sm">
+        {#each lines as l (l.materialId + l.ruleId)}
+          <li class="flex items-baseline justify-between gap-2">
+            <span class="min-w-0">
+              <span class="block truncate">{l.materialName}</span>
+              <span class="block text-xs opacity-60 tabular-nums">
+                {#if l.qtyWithWaste !== l.qty}
+                  {l.qty} → {l.qtyWithWaste}
+                {:else}
+                  {l.qtyWithWaste}
+                {/if}
+                {UNIT_LABELS[l.unit]} · {fmt(l.priceRub)}/{UNIT_LABELS[l.unit]}
+              </span>
+            </span>
+            <span class="shrink-0 font-medium tabular-nums"
+              >{fmt(l.sumRub)}</span
+            >
+          </li>
+        {/each}
+      </ul>
+    </details>
   {/each}
 </div>
 <div

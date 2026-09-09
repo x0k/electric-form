@@ -2,6 +2,7 @@ export {
   COST_CATEGORIES,
   COST_CATEGORY_LABELS,
   DEFAULT_WASTE_PCT,
+  UNIT_LABELS,
   resolveMaterial,
 } from './types';
 export type { CostCategory, Unit, Material, CatalogOverride } from './types';

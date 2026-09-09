@@ -11,7 +11,7 @@
   }: {
     path: any;
     label: string;
-    options: readonly { value: string; label: string }[];
+    options: readonly { value: string; label: string; hint?: string }[];
     onform: (form: ProjectForm) => void;
   } = $props();
 

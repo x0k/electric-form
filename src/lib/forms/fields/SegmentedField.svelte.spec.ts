@@ -17,7 +17,11 @@ describe('SegmentedField', () => {
         options: [
           { value: 'rough', label: 'Черновой' },
           { value: 'whitebox', label: 'White box' },
-          { value: 'lived', label: 'Жилая' },
+          {
+            value: 'lived',
+            label: 'Жилая',
+            hint: 'Ремонт готов: минимум штроб и пыли',
+          },
         ],
         onform: (f: ProjectForm) => (form = f),
       },
@@ -34,5 +38,9 @@ describe('SegmentedField', () => {
       'lived'
     );
     await expect.element(lived).toHaveAttribute('aria-checked', 'true');
+    // Пояснение выбранного варианта видно под кнопками.
+    await expect
+      .element(page.getByText('Ремонт готов: минимум штроб и пыли'))
+      .toBeVisible();
   });
 });

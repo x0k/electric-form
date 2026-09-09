@@ -37,9 +37,21 @@
     path={['general', 'stage']}
     label="Стадия объекта"
     options={[
-      { value: 'rough', label: 'Черновой' },
-      { value: 'whitebox', label: 'White box' },
-      { value: 'lived', label: 'Жилая' },
+      {
+        value: 'rough',
+        label: 'Черновой',
+        hint: 'Голые стены без отделки: штробим где угодно, кабель — до штукатурки',
+      },
+      {
+        value: 'whitebox',
+        label: 'White box',
+        hint: 'Штукатурка и стяжка готовы: штробить можно, но ограниченно',
+      },
+      {
+        value: 'lived',
+        label: 'Жилая',
+        hint: 'Ремонт готов: минимум штроб и пыли, больше открытого монтажа',
+      },
     ]}
   />
   <div class="flex flex-col gap-1">

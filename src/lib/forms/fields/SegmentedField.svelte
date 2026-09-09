@@ -13,7 +13,7 @@
     form: ProjectForm;
     path: any;
     label: string;
-    options: readonly { value: string; label: string }[];
+    options: readonly { value: string; label: string; hint?: string }[];
     hint?: string;
   } = $props();
 
@@ -27,6 +27,9 @@
       : null
   );
   const current = $derived(field.input as string | undefined);
+  const selectedHint = $derived(
+    options.find((o) => o.value === current)?.hint ?? ''
+  );
 </script>
 
 <FieldShell {label} {error} {hint}>
@@ -50,4 +53,7 @@
       </button>
     {/each}
   </div>
+  {#if selectedHint && !error}
+    <p class="pt-1 text-xs opacity-60">{selectedHint}</p>
+  {/if}
 </FieldShell>

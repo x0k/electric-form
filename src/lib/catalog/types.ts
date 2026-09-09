@@ -27,6 +27,14 @@ export const COST_CATEGORY_LABELS: Record<CostCategory, string> = {
 
 export type Unit = 'm' | 'pcs' | 'set' | 'box';
 
+/** Подписи единиц для сметы. */
+export const UNIT_LABELS: Record<Unit, string> = {
+  m: 'м',
+  pcs: 'шт',
+  set: 'компл',
+  box: 'кор',
+};
+
 export interface Material {
   id: string;
   category: CostCategory;
