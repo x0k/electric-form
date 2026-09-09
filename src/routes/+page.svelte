@@ -93,6 +93,7 @@
         onchange={onImport}
       />
     </label>
+    <a class="btn btn-ghost btn-sm" href="/catalog">Каталог цен</a>
   </div>
 
   {#if projects.length === 0}

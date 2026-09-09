@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { SvelteSet } from 'svelte/reactivity';
   import { getDeepErrorEntries, setInput, validate } from '@formisch/svelte';
   import * as v from 'valibot';
@@ -8,7 +9,10 @@
     SEED_CATALOG,
     COST_CATEGORY_LABELS,
     COST_CATEGORIES,
+    applyOverrides,
+    type OverrideMap,
   } from '#lib/catalog/index';
+  import { loadOverrides } from '#lib/storage/repo';
   import { createProjectForm } from '#lib/forms/ctx';
   import { STEPS } from '#lib/forms/steps';
   import NumberField from '#lib/forms/fields/NumberField.svelte';
@@ -41,6 +45,14 @@
   let validatedOnce = $state(false);
   let saved = $state(true);
 
+  // Пользовательские цены/запасы поверх seed-каталога (редактор /catalog).
+  let overrides = $state<OverrideMap>({});
+  onMount(() => {
+    overrides = loadOverrides();
+  });
+  const catalog = $derived(applyOverrides(SEED_CATALOG, overrides));
+  const overriddenCount = $derived(Object.keys(overrides).length);
+
   // Синхронизация черновика в стор + автосейв (дебаунс).
   let timer: ReturnType<typeof setTimeout> | undefined;
   $effect(() => {
@@ -58,8 +70,8 @@
     return () => clearTimeout(timer);
   });
 
-  const result = $derived(calculate(draft, SEED_CATALOG));
-  const savings = $derived(calcSavings(draft, SEED_CATALOG));
+  const result = $derived(calculate(draft, catalog));
+  const savings = $derived(calcSavings(draft, catalog));
 
   function fmt(n: number): string {
     return `${Math.round(n).toLocaleString('ru-RU')} ₽`;
@@ -525,6 +537,12 @@
             {draft.general.bathrooms}
           </div>
           <h3 class="mt-3 font-semibold">Материалы</h3>
+          {#if overriddenCount > 0}
+            <p class="mt-1 text-xs opacity-60">
+              Цены изменены вручную ({overriddenCount}).
+              <a class="link" href="/catalog">Редактировать каталог</a>
+            </p>
+          {/if}
           <div class="mt-2 divide-y rounded bg-base-100">
             {#each COST_CATEGORIES as c (c)}
               {@const sum = result.categoryTotals[c]}
