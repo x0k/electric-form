@@ -7,6 +7,9 @@ export function createProjectForm(project: Project) {
   return createForm({
     schema: ProjectSchema,
     initialInput: project,
+    // Показываем ошибку после первого изменения, дальше — live.
+    validate: 'change',
+    revalidate: 'input',
   });
 }
 

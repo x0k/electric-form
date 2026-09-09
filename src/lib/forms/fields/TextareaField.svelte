@@ -8,13 +8,13 @@
     path,
     label,
     hint = '',
-    placeholder = '',
+    rows = 2,
   }: {
     form: ProjectForm;
     path: any;
     label: string;
     hint?: string;
-    placeholder?: string;
+    rows?: number;
   } = $props();
 
   const field = useField(
@@ -29,12 +29,10 @@
 </script>
 
 <FieldShell {label} {error} {hint}>
-  <input
+  <textarea
     {...field.props}
-    type="text"
-    class="input input-bordered w-full"
-    class:input-error={!!error}
-    value={(field.input as string | undefined) ?? ''}
-    {placeholder}
-  />
+    class="textarea textarea-bordered w-full"
+    class:textarea-error={!!error}
+    {rows}
+    value={(field.input as string | undefined) ?? ''}></textarea>
 </FieldShell>
