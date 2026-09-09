@@ -62,23 +62,26 @@
   }
 </script>
 
-<div class="mx-auto max-w-3xl p-4">
-  <h1 class="text-2xl font-bold">Проекты электрики</h1>
-  <p class="mt-1 opacity-70">
+<div class="mx-auto w-full max-w-xl px-3 pt-4 pb-8">
+  <h1 class="text-xl font-bold">Проекты электрики</h1>
+  <p class="mt-1 text-sm opacity-70">
     Предварительная оценка материалов и сроков для квартир.
   </p>
 
-  <div class="mt-4 flex gap-2">
+  <div class="mt-4 flex flex-col gap-2 sm:flex-row">
     <input
-      class="input input-bordered flex-1"
+      class="input input-bordered h-11 flex-1"
       placeholder="Название проекта"
+      enterkeyhint="go"
       bind:value={name}
       onkeydown={(e) => e.key === 'Enter' && create()}
     />
-    <button class="btn btn-primary" onclick={create}>Создать</button>
+    <button class="btn btn-primary h-11 sm:w-auto" onclick={create}
+      >Создать</button
+    >
   </div>
 
-  <div class="mt-4 flex gap-2">
+  <div class="mt-3 flex flex-wrap gap-2">
     <button class="btn btn-ghost btn-sm" onclick={download}>Экспорт JSON</button
     >
     <label class="btn btn-ghost btn-sm">
@@ -93,7 +96,7 @@
   </div>
 
   {#if projects.length === 0}
-    <div class="alert mt-6">
+    <div class="alert mt-6 text-sm">
       <span>Пока нет проектов — создайте первый выше.</span>
     </div>
   {:else}
@@ -101,18 +104,24 @@
       {#each projects as p (p.meta.id)}
         <li class="card bg-base-200 p-3">
           <div class="flex items-center gap-2">
-            <a class="link font-medium flex-1" href={`/p/${p.meta.id}`}
-              >{p.meta.name}</a
-            >
-            <span class="badge badge-ghost"
-              >{p.general.areaM2} м² · {p.general.rooms}к</span
-            >
+            <div class="min-w-0 flex-1">
+              <a
+                class="link block truncate font-medium"
+                href={`/p/${p.meta.id}`}>{p.meta.name}</a
+              >
+              <span class="text-xs opacity-60 tabular-nums"
+                >{p.general.areaM2} м² · {p.general.rooms}к · {p.general
+                  .bathrooms}с/у</span
+              >
+            </div>
             <button
-              class="btn btn-ghost btn-sm"
+              class="btn btn-ghost btn-sm shrink-0"
+              aria-label="Дублировать {p.meta.name}"
               onclick={() => duplicate(p.meta.id)}>Копия</button
             >
             <button
-              class="btn btn-ghost btn-sm text-error"
+              class="btn btn-ghost btn-sm shrink-0 text-error"
+              aria-label="Удалить {p.meta.name}"
               onclick={() => remove(p.meta.id)}>✕</button
             >
           </div>

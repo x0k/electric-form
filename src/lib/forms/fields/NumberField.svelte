@@ -25,9 +25,10 @@
 <FieldShell {label} {error} {hint}>
   <input
     type="number"
-    class="input input-bordered w-full"
+    class="input input-bordered h-11 w-full"
     class:input-error={!!error}
     bind:value
+    inputmode="decimal"
     {min}
     {max}
     {step}
