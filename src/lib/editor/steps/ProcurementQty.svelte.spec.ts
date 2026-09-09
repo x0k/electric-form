@@ -19,34 +19,27 @@ async function renderHarness(): Promise<ProjectForm> {
 }
 
 describe('procurement qty', () => {
-  it('проходные: пусто = 0, число фиксируется, Заполнить проставляет расчёт', async () => {
+  it('проходные: 0 по умолчанию, число фиксируется, Пересчитать перезаписывает', async () => {
     const form = await renderHarness();
     const path = ['lighting', 'passThroughQty'] as const;
 
-    // Поле всегда видимо, изначально пусто (= 0 в смете).
+    // Поле всегда видимо, изначально явный 0.
     await expect
       .element(page.getByText('Проходных выключателей, шт'))
       .toBeVisible();
-    expect(getInput(form, { path: [...path] })).toBeUndefined();
-
-    // Фиксируем 3 для закупки (второй спинбуттон после групп).
     const qty = page.getByRole('spinbutton').nth(1);
+    await expect.element(qty).toHaveValue(0);
+    expect(getInput(form, { path: [...path] })).toBe(0);
+
+    // Фиксируем 3 для закупки.
     await qty.fill('3');
     await expect.element(qty).toHaveValue(3);
     await vi.waitFor(() => {
       expect(getInput(form, { path: [...path] })).toBe(3);
     });
 
-    // Очистка → снова пусто (= 0 в смете).
-    await qty.fill('');
-    await vi.waitFor(() => {
-      expect(getInput(form, { path: [...path] })).toBeUndefined();
-    });
-
-    // Кнопка «Заполнить» проставляет расчёт (4) явно.
-    await page
-      .getByRole('button', { name: 'Заполнить количества по расчёту' })
-      .click();
+    // Кнопка «Пересчитать» перезаписывает формулой (группы=4).
+    await page.getByRole('button', { name: 'Пересчитать количества' }).click();
     await expect.element(qty).toHaveValue(4);
     await vi.waitFor(() => {
       expect(getInput(form, { path: [...path] })).toBe(4);

@@ -16,7 +16,7 @@
     {form}
     path={['sensors', 'leakQty']}
     label="Датчиков протечки, шт"
-    hint="На пол в санузле и кухне; пусто = 0"
+    hint="На пол в санузле и кухне"
     min={0}
     max={30}
   />
@@ -24,7 +24,7 @@
     {form}
     path={['sensors', 'valveQty']}
     label="Клапанов, шт"
-    hint="Сами перекроют воду; пусто = 0"
+    hint="Сами перекроют воду при протечке"
     min={0}
     max={20}
   />
@@ -32,7 +32,6 @@
     {form}
     path={['sensors', 'smokeQty']}
     label="Дымовых датчиков, шт"
-    hint="Количество для закупки (пусто = 0)"
     min={0}
     max={30}
   />
@@ -40,7 +39,7 @@
     {form}
     path={['sensors', 'motionQty']}
     label="Датчиков движения, шт"
-    hint="Для света в коридоре и санузле; пусто = 0"
+    hint="Для света в коридоре и санузле"
     min={0}
     max={30}
   />
@@ -49,17 +48,17 @@
     {form}
     path={['sensors', 'curtainQty']}
     label="Электрокарнизов, шт"
-    hint="Нужно заложить питание у окон; пусто = 0"
+    hint="Нужно заложить питание у окон"
     min={0}
     max={20}
   />
   <button
     type="button"
     class="btn btn-outline w-full md:col-span-2"
-    title="Проставит расчётные количества в пустые поля включённых позиций"
+    title="Пересчитает все количества раздела по формулам"
     onclick={() => fillProcurementBlanks(form, view, 'sensors')}
   >
-    Заполнить количества по расчёту
+    Пересчитать количества
   </button>
 </div>
 <details class="collapse-arrow bg-base-100 collapse mt-3">

@@ -114,6 +114,13 @@ export function createDefaultProject(name = 'Новая квартира'): Proj
     },
     lighting: {
       groups: deriveLightingGroups(general),
+      // Закупочные количества: явный 0 вместо пустого undefined —
+      // что видишь, то и считается.
+      passThroughQty: 0,
+      ledKitchenQty: 0,
+      ledMirrorQty: 0,
+      ledDecorQty: 0,
+      dimmerQty: 0,
       smart: false,
       ledPanel: false,
       ledControl: 'triac',
@@ -128,6 +135,11 @@ export function createDefaultProject(name = 'Новая квартира'): Proj
       supRequired: true,
     },
     sensors: {
+      leakQty: 0,
+      valveQty: 0,
+      smokeQty: 0,
+      motionQty: 0,
+      curtainQty: 0,
       openSensor: false,
       temp: false,
       smartHome: false,

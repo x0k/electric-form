@@ -34,8 +34,7 @@
     {form}
     path={['lighting', 'passThroughQty']}
     label="Проходных выключателей, шт"
-    hint="Остальные посчитаются обычными (всего групп: {view.lighting
-      .groups}); пусто = 0"
+    hint="Остальные посчитаются обычными (всего групп: {view.lighting.groups})"
     min={0}
     max={40}
   />
@@ -43,7 +42,7 @@
     {form}
     path={['lighting', 'dimmerQty']}
     label="Диммеров, шт"
-    hint="Для закупки (пусто = 0)"
+    hint="Для закупки"
     min={0}
     max={40}
   />
@@ -52,7 +51,6 @@
       {form}
       path={['lighting', 'ledKitchenQty']}
       label="Кухонных комплектов, шт"
-      hint="Количество для закупки (пусто = 0)"
       min={0}
       max={10}
     />
@@ -61,7 +59,6 @@
     {form}
     path={['lighting', 'ledMirrorQty']}
     label="Комплектов для зеркал, шт"
-    hint="Количество для закупки (пусто = 0)"
     min={0}
     max={20}
   />
@@ -69,7 +66,6 @@
     {form}
     path={['lighting', 'ledDecorQty']}
     label="Декор-комплектов, шт"
-    hint="Количество для закупки (пусто = 0)"
     min={0}
     max={10}
   />
@@ -77,10 +73,10 @@
   <button
     type="button"
     class="btn btn-outline w-full md:col-span-2"
-    title="Проставит расчётные количества в пустые поля"
+    title="Пересчитает все количества раздела по формулам"
     onclick={() => fillProcurementBlanks(form, view, 'lighting')}
   >
-    Заполнить количества по расчёту
+    Пересчитать количества
   </button>
 </div>
 

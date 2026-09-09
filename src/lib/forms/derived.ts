@@ -140,10 +140,11 @@ export function suggestProcurement(p: Project): ProcurementSuggestion[] {
 }
 
 /**
- * Кнопка «Заполнить количества»: проставляет формулы только в пустые поля
- * раздела. Введённое остаётся edited — это явные данные,
- * а не автоматика (reset здесь намеренно нет).
- * @returns число заполненных полей.
+ * Кнопка «Пересчитать количества»: проставляет формулы во все поля
+ * раздела. Все поля обязательные, пустых не бывает — поэтому это именно
+ * пересчёт, а не заполнение пробелов. Введённое остаётся edited —
+ * это явные данные, а не автоматика (reset здесь намеренно нет).
+ * @returns число полей раздела.
  */
 export function fillProcurementBlanks(
   form: ProjectForm,
@@ -154,8 +155,6 @@ export function fillProcurementBlanks(
   for (const s of suggestProcurement(view)) {
     if (s.path[0] !== section) continue;
     const path = s.path as any;
-    const cur = getInput(form, { path }) as number | undefined;
-    if (cur !== undefined) continue;
     setInput(form, { path, input: s.value as never });
     filled += 1;
   }

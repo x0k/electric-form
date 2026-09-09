@@ -12,18 +12,13 @@ describe('project schema', () => {
     expect(createDefaultProject().scope.customerSockets).toBe(false);
   });
 
-  it('закупочные количества по умолчанию не заданы (режим 0)', () => {
-    const p = createDefaultProject();
-    expect(p.lighting.passThroughQty).toBeUndefined();
-    expect(p.lighting.dimmerQty).toBeUndefined();
-    expect(p.lighting.ledKitchenQty).toBeUndefined();
-    expect(p.lighting.ledMirrorQty).toBeUndefined();
-    expect(p.lighting.ledDecorQty).toBeUndefined();
-    expect(p.sensors.leakQty).toBeUndefined();
-    expect(p.sensors.valveQty).toBeUndefined();
-    expect(p.sensors.smokeQty).toBeUndefined();
-    expect(p.sensors.motionQty).toBeUndefined();
-    expect(p.sensors.curtainQty).toBeUndefined();
+  it('неполный проект без закупочного количества отклоняется', () => {
+    const raw = JSON.parse(
+      JSON.stringify(createDefaultProject('incomplete'))
+    ) as Record<string, unknown>;
+    delete (raw['lighting'] as Record<string, unknown>)['passThroughQty'];
+    const parsed = parseProject(raw);
+    expect(parsed.ok).toBe(false);
   });
 
   it('неизвестные ключи отбрасываются, проект валиден', () => {

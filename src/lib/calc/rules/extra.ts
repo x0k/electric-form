@@ -62,8 +62,8 @@ export const automationRules: Rule[] = [
     label: 'Защита от протечек',
     category: 'automation',
     apply: (p) => [
-      { materialId: 'leak-sensor', qty: p.sensors.leakQty ?? 0 },
-      ...(p.sensors.valveQty != null && p.sensors.valveQty > 0
+      { materialId: 'leak-sensor', qty: p.sensors.leakQty },
+      ...(p.sensors.valveQty > 0
         ? [{ materialId: 'leak-valve', qty: p.sensors.valveQty }]
         : []),
     ],
@@ -73,9 +73,7 @@ export const automationRules: Rule[] = [
     stage: 'finish',
     label: 'Дымовые датчики',
     category: 'automation',
-    apply: (p) => [
-      { materialId: 'smoke-sensor', qty: p.sensors.smokeQty ?? 0 },
-    ],
+    apply: (p) => [{ materialId: 'smoke-sensor', qty: p.sensors.smokeQty }],
   },
   {
     id: 'auto-motion',
@@ -85,7 +83,7 @@ export const automationRules: Rule[] = [
     apply: (p) => [
       {
         materialId: 'motion-sensor',
-        qty: p.sensors.motionQty ?? 0,
+        qty: p.sensors.motionQty,
       },
     ],
   },
@@ -94,9 +92,7 @@ export const automationRules: Rule[] = [
     stage: 'finish',
     label: 'Электрокарнизы',
     category: 'automation',
-    apply: (p) => [
-      { materialId: 'curtain-motor', qty: p.sensors.curtainQty ?? 0 },
-    ],
+    apply: (p) => [{ materialId: 'curtain-motor', qty: p.sensors.curtainQty }],
   },
 ];
 

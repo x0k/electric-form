@@ -29,14 +29,23 @@ describe('дефолт проекта', () => {
   it('не содержит тихого присутствия вне производных', () => {
     const p = createDefaultProject();
     expect(p.lowVoltage.cameras).toBe(0);
-    expect(p.lighting.ledKitchenQty).toBeUndefined();
+    // Закупочные количества — явные нули, а не пустота.
+    expect(p.lighting.passThroughQty).toBe(0);
+    expect(p.lighting.dimmerQty).toBe(0);
+    expect(p.lighting.ledKitchenQty).toBe(0);
+    expect(p.lighting.ledMirrorQty).toBe(0);
+    expect(p.lighting.ledDecorQty).toBe(0);
+    expect(p.sensors.leakQty).toBe(0);
+    expect(p.sensors.valveQty).toBe(0);
+    expect(p.sensors.smokeQty).toBe(0);
+    expect(p.sensors.motionQty).toBe(0);
+    expect(p.sensors.curtainQty).toBe(0);
     // Потребители: ни один не отмечен, отдельных линий нет.
     expect(p.power.consumers.every((c) => !c.present)).toBe(true);
     expect(p.power.consumers.every((c) => !c.dedicatedLine)).toBe(true);
     // Щит и работы: без запаса и опций.
     expect(p.panel.reserveModules).toBe(0);
     expect(Object.values(p.panel.options).every((v) => !v)).toBe(true);
-    expect(p.sensors.leakQty).toBeUndefined();
     expect(p.ac.count).toBe(0);
     // Лента: ни щита, ни плавного пуска по умолчанию.
     expect(p.lighting.ledPanel).toBe(false);

@@ -1,19 +1,14 @@
 import * as v from 'valibot';
 
 /**
- * Строгая схема: все поля обязательные, кроме закупочных количеств,
- * где отсутствие (undefined) означает 0. Никаких тихих фолбэков:
- * неполные данные отклоняются парсером, а не дополняются.
+ * Строгая схема: все поля обязательные. Неполные данные отклоняются
+ * парсером, а не дополняются фолбэками.
  */
-
 const int = (min: number, max: number) =>
   v.pipe(v.number(), v.integer(), v.minValue(min), v.maxValue(max));
 
 const num = (min: number, max: number) =>
   v.pipe(v.number(), v.minValue(min), v.maxValue(max));
-
-/** Закупочное количество: отсутствие = 0 (не нужно). */
-const qty = (min: number, max: number) => v.optional(int(min, max));
 
 export const StageSchema = v.picklist(['rough', 'whitebox', 'lived'] as const);
 export const PhasesSchema = v.picklist(['1', '3'] as const);
@@ -93,13 +88,13 @@ export const LowVoltageSchema = v.object({
 export const LightingSchema = v.object({
   groups: int(0, 40),
   /** Проходных из общего числа выключателей; пусто/0 = все обычные. */
-  passThroughQty: qty(0, 40),
+  passThroughQty: int(0, 40),
   /** Явные количества комплектов подсветки; пусто/0 = нет. */
-  ledKitchenQty: qty(0, 10),
-  ledMirrorQty: qty(0, 20),
-  ledDecorQty: qty(0, 10),
+  ledKitchenQty: int(0, 10),
+  ledMirrorQty: int(0, 20),
+  ledDecorQty: int(0, 10),
   /** Диммеров для комнатного света; пусто/0 = без диммирования. */
-  dimmerQty: qty(0, 40),
+  dimmerQty: int(0, 40),
   smart: v.boolean(),
   /** Отдельный щит под ленту: от него тянутся отдельные линии (больше кабеля). */
   ledPanel: v.boolean(),
@@ -121,14 +116,14 @@ export const BathroomsSchema = v.object({
 
 export const SensorsSchema = v.object({
   /** Явные количества; пусто/0 = нет. Степперы видны всегда. */
-  leakQty: qty(0, 30),
-  valveQty: qty(0, 20),
-  smokeQty: qty(0, 30),
-  motionQty: qty(0, 30),
+  leakQty: int(0, 30),
+  valveQty: int(0, 20),
+  smokeQty: int(0, 30),
+  motionQty: int(0, 30),
   openSensor: v.boolean(),
   temp: v.boolean(),
   smartHome: v.boolean(),
-  curtainQty: qty(0, 20),
+  curtainQty: int(0, 20),
 });
 
 export const PANEL_OPTION_IDS = [

@@ -16,7 +16,7 @@ export const socketsRules: Rule[] = [
     stage: 'finish',
     apply: (p) => {
       // Проходные вытесняют обычные один к одному из общего числа групп.
-      const pass = p.lighting.passThroughQty ?? 0;
+      const pass = p.lighting.passThroughQty;
       const out = [];
       if (pass > 0) out.push({ materialId: 'switch-pass', qty: pass });
       const plain = Math.max(p.lighting.groups - pass, 0);
@@ -32,7 +32,7 @@ export const socketsRules: Rule[] = [
     apply: (p) => [
       {
         materialId: 'switch-dim',
-        qty: p.lighting.dimmerQty ?? 0,
+        qty: p.lighting.dimmerQty,
       },
     ],
   },
@@ -43,11 +43,11 @@ export const socketsRules: Rule[] = [
     stage: 'finish',
     apply: (p) => {
       const out = [];
-      const kitchen = p.lighting.ledKitchenQty ?? 0;
+      const kitchen = p.lighting.ledKitchenQty;
       if (kitchen > 0) out.push({ materialId: 'led-kitchen', qty: kitchen });
-      const mirror = p.lighting.ledMirrorQty ?? 0;
+      const mirror = p.lighting.ledMirrorQty;
       if (mirror > 0) out.push({ materialId: 'led-mirror', qty: mirror });
-      const decor = p.lighting.ledDecorQty ?? 0;
+      const decor = p.lighting.ledDecorQty;
       if (decor > 0) out.push({ materialId: 'led-decor', qty: decor });
       const zones = estimateLedZones(p);
       if (isPushLed(p)) {
