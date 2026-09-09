@@ -55,6 +55,11 @@ export const GeneralSchema = v.object({
   doorsCount: int(0, 30),
   /** Ручная оценка точек; 0 = автооценка. */
   socketsEstimate: int(0, 300),
+  /** Ввод в квартиру: свойства сети здания, а не щита. */
+  phases: PhasesSchema,
+  mainBreakerA: int(10, 100),
+  grounding: GroundingSchema,
+  inputA: int(10, 100),
 });
 
 export const PowerConsumerSchema = v.object({
@@ -146,10 +151,6 @@ export const PANEL_DEFAULTS: Record<
 >;
 
 export const PanelSchema = v.object({
-  phases: PhasesSchema,
-  mainBreakerA: int(10, 100),
-  grounding: GroundingSchema,
-  inputA: int(10, 100),
   reserveModules: int(0, 24),
   options: PanelOptionsSchema,
 });

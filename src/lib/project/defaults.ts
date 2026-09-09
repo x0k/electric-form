@@ -80,6 +80,10 @@ export function createDefaultProject(name = 'Новая квартира'): Proj
     stage: 'whitebox' as const,
     doorsCount: 0,
     socketsEstimate: 0,
+    phases: '1' as const,
+    mainBreakerA: 40,
+    grounding: 'unknown' as const,
+    inputA: 40,
   };
   const tv = deriveTvOutlets(generalBase);
   const wifi = deriveWifiAP(generalBase);
@@ -136,10 +140,6 @@ export function createDefaultProject(name = 'Новая квартира'): Proj
       supRequired: true,
     },
     panel: {
-      phases: '1',
-      mainBreakerA: 40,
-      grounding: 'unknown',
-      inputA: 40,
       reserveModules: 0,
       options: { ...PANEL_DEFAULTS },
     },

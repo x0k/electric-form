@@ -1,47 +1,16 @@
 <script lang="ts">
   import type { ProjectForm } from '#lib/forms/ctx';
   import NumberField from '#lib/forms/fields/NumberField.svelte';
-  import SegmentedField from '#lib/forms/fields/SegmentedField.svelte';
-  import SelectField from '#lib/forms/fields/SelectField.svelte';
   import ToggleField from '#lib/forms/fields/ToggleField.svelte';
   import type { Project } from '#lib/project/types';
 
   let { form, view }: { form: ProjectForm; view: Project } = $props();
 
-  const is3ph = $derived(view.panel.phases === '3');
+  const is3ph = $derived(view.general.phases === '3');
   const useRcbo = $derived(view.panel.options.rcbo);
 </script>
 
 <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-  <SegmentedField
-    {form}
-    path={['panel', 'phases']}
-    label="Фазы"
-    options={[
-      { value: '1', label: '1 фаза' },
-      { value: '3', label: '3 фазы' },
-    ]}
-  />
-  <SelectField
-    {form}
-    path={['panel', 'grounding']}
-    label="Заземление"
-    hint="Не знаете — оставьте «Неизвестно»"
-    options={[
-      { value: 'TN-C-S', label: 'TN-C-S' },
-      { value: 'TN-S', label: 'TN-S' },
-      { value: 'TT', label: 'TT' },
-      { value: 'unknown', label: 'Неизвестно' },
-    ]}
-  />
-  <NumberField
-    {form}
-    path={['panel', 'mainBreakerA']}
-    label="Вводной автомат, А"
-    hint="Спросите в УК или посмотрите на счётчике"
-    min={10}
-    max={100}
-  />
   <NumberField
     {form}
     path={['panel', 'reserveModules']}
@@ -51,6 +20,12 @@
     max={24}
   />
 </div>
+{#if !is3ph && view.panel.options.phaseRelay}
+  <p class="mt-2 text-sm opacity-60">
+    Реле контроля фаз работает только при 3 фазах (см. «Общее», ввод) — в смету
+    не попало.
+  </p>
+{/if}
 
 <h3 class="mt-4 font-semibold">Защита</h3>
 <div class="mt-2 grid grid-cols-1 gap-x-4 md:grid-cols-2">
@@ -125,16 +100,6 @@
     >Редкие опции — для сложных случаев</summary
   >
   <div class="collapse-content">
-    <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-      <NumberField
-        {form}
-        path={['panel', 'inputA']}
-        label="Номинал ввода, А"
-        hint="Обычно совпадает с вводным автоматом"
-        min={10}
-        max={100}
-      />
-    </div>
     <div class="mt-2 grid grid-cols-1 gap-x-4 md:grid-cols-2">
       {#if is3ph}
         <ToggleField

@@ -44,7 +44,7 @@ export const cableRules: Rule[] = [
     apply: (p) => [
       {
         materialId:
-          p.panel.phases === '3' ? 'cable-vvg-5x6' : 'cable-vvg-3x2.5',
+          p.general.phases === '3' ? 'cable-vvg-5x6' : 'cable-vvg-3x2.5',
         qty: METHOD.inputCableM,
       },
     ],

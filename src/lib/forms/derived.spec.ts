@@ -20,6 +20,10 @@ function general(over: Partial<General> = {}): General {
     stage: 'whitebox',
     doorsCount: 0,
     socketsEstimate: 0,
+    phases: '1',
+    mainBreakerA: 40,
+    grounding: 'unknown',
+    inputA: 40,
     ...over,
   };
 }

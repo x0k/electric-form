@@ -48,7 +48,7 @@ export const panelRules: Rule[] = [
       if (big > 0) out.push({ materialId: 'breaker-25', qty: big });
       out.push({
         materialId: 'breaker-40',
-        qty: p.panel.phases === '3' ? 1 : 1,
+        qty: 1,
       });
       return out;
     },
@@ -90,9 +90,7 @@ export const panelRules: Rule[] = [
     label: 'Реле напряжения',
     category: 'panel',
     when: (p) => !!p.panel.options.voltageRelay,
-    apply: (p) => [
-      { materialId: 'voltage-relay', qty: p.panel.phases === '3' ? 1 : 1 },
-    ],
+    apply: () => [{ materialId: 'voltage-relay', qty: 1 }],
   },
   {
     id: 'panel-spd',
@@ -107,7 +105,7 @@ export const panelRules: Rule[] = [
     stage: 'rough',
     label: 'Реле контроля фаз',
     category: 'panel',
-    when: (p) => !!p.panel.options.phaseRelay && p.panel.phases === '3',
+    when: (p) => !!p.panel.options.phaseRelay && p.general.phases === '3',
     apply: () => [{ materialId: 'phase-relay', qty: 1 }],
   },
   {

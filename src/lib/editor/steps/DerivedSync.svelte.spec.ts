@@ -25,10 +25,10 @@ async function renderHarness(): Promise<ProjectForm> {
 describe('derived sync', () => {
   it('группы считаются из комнат, ручная правка останавливает синхр', async () => {
     const form = await renderHarness();
-    // Видимые спинбуттоны: площадь, комнаты, санузлы, группы
-    // (двери/точки — в закрытом details, вне дерева доступности).
+    // Видимые спинбуттоны: площадь, комнаты, санузлы, вводной автомат,
+    // номинал ввода, группы, ... (двери/точки — в закрытом details).
     const roomsInput = page.getByRole('spinbutton').nth(1);
-    const groupsInput = page.getByRole('spinbutton').nth(3);
+    const groupsInput = page.getByRole('spinbutton').nth(5);
 
     // Старт: rooms=2 → groups=4 с бейджем «авто» (группы + двери).
     await expect.element(groupsInput).toHaveValue(4);

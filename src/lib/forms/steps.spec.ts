@@ -10,8 +10,8 @@ describe('7 steps', () => {
     expect(STEPS.map((s) => s.id)).toEqual([
       'general',
       'power',
-      'lowvoltage',
       'lighting',
+      'lowvoltage',
       'sensors',
       'panel',
       'result',
@@ -56,5 +56,22 @@ describe('7 steps', () => {
     expect(
       calculate(noChase, SEED_CATALOG).lines.map((l) => l.materialId)
     ).not.toContain('corr-25');
+  });
+  it('автоматика — чистовой этап итога, СУП — черновой', () => {
+    const p = createDefaultProject('stages');
+    p.sensors.leakQty = 2;
+    p.sensors.valveQty = 2;
+    p.sensors.smokeQty = 2;
+    p.sensors.motionQty = 1;
+    p.sensors.curtainQty = 1;
+    p.sensors.temp = true;
+    p.sensors.openSensor = true;
+    p.sensors.smartHome = true;
+    const lines = calculate(p, SEED_CATALOG).lines;
+    const autoStages = new Set(
+      lines.filter((l) => l.category === 'automation').map((l) => l.stage)
+    );
+    expect([...autoStages]).toEqual(['finish']);
+    expect(lines.find((l) => l.ruleId === 'sup')?.stage).toBe('rough');
   });
 });

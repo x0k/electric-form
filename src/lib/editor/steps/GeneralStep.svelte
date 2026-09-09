@@ -3,6 +3,7 @@
   import { deriveDoorsCount } from '#lib/forms/derived';
   import NumberField from '#lib/forms/fields/NumberField.svelte';
   import SegmentedField from '#lib/forms/fields/SegmentedField.svelte';
+  import SelectField from '#lib/forms/fields/SelectField.svelte';
   import TextField from '#lib/forms/fields/TextField.svelte';
   import TextareaField from '#lib/forms/fields/TextareaField.svelte';
   import ToggleField from '#lib/forms/fields/ToggleField.svelte';
@@ -66,6 +67,47 @@
       hint="Расчёт по типовым значениям"
     />
   </div>
+</div>
+
+<h3 class="mt-4 font-semibold">Ввод в квартиру</h3>
+<div class="mt-2 grid grid-cols-1 gap-3 md:grid-cols-2">
+  <SegmentedField
+    {form}
+    path={['general', 'phases']}
+    label="Фазы"
+    options={[
+      { value: '1', label: '1 фаза' },
+      { value: '3', label: '3 фазы' },
+    ]}
+  />
+  <SelectField
+    {form}
+    path={['general', 'grounding']}
+    label="Заземление"
+    hint="Не знаете — оставьте «Неизвестно»"
+    options={[
+      { value: 'TN-C-S', label: 'TN-C-S' },
+      { value: 'TN-S', label: 'TN-S' },
+      { value: 'TT', label: 'TT' },
+      { value: 'unknown', label: 'Неизвестно' },
+    ]}
+  />
+  <NumberField
+    {form}
+    path={['general', 'mainBreakerA']}
+    label="Вводной автомат, А"
+    hint="Спросите в УК или посмотрите на счётчике"
+    min={10}
+    max={100}
+  />
+  <NumberField
+    {form}
+    path={['general', 'inputA']}
+    label="Номинал ввода, А"
+    hint="Обычно совпадает с вводным автоматом"
+    min={10}
+    max={100}
+  />
 </div>
 <details class="collapse-arrow bg-base-100 collapse mt-3">
   <summary class="collapse-title font-medium"
