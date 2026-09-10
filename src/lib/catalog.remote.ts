@@ -48,7 +48,7 @@ export const getPriceData = query(async (): Promise<PriceData> => {
 });
 
 /** Путь к бинарю парсера: PRICES_BIN > ./parsers-bin рядом с рабочей папкой. */
-export function resolvePricesBin(): string | null {
+function resolvePricesBin(): string | null {
   const direct = process.env.PRICES_BIN;
   if (direct && existsSync(direct)) return direct;
   const local = join(process.cwd(), 'parsers-bin');
