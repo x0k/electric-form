@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { command, query } from '$app/server';
@@ -14,6 +14,7 @@ import {
 import {
   DEFAULT_CITY,
   getLatestOffers,
+  getLatestRun,
   type MarketOffer,
   type PriceRun,
 } from '#lib/server/db/prices';
@@ -56,43 +57,62 @@ function resolvePricesBin(): string | null {
   return null;
 }
 
-function runScrape(
-  bin: string,
-  dbPath: string
-): Promise<{ code: number; tail: string }> {
-  return new Promise((resolve) => {
-    execFile(
-      bin,
-      ['scrape', '--city', DEFAULT_CITY, '--db', dbPath, '--delay', '600ms'],
-      { timeout: 15 * 60_000, maxBuffer: 4 * 1024 * 1024 },
-      (err, stdout, stderr) => {
-        const tail = `${stdout}\n${stderr}`.slice(-4000);
-        resolve({ code: err ? 1 : 0, tail });
-      }
-    );
+function runScrapeDetached(bin: string, dbPath: string): void {
+  // Асинхронный запуск: процесс отсоединяется, stdout/stderr наследуются —
+  // логи парсера подхватывает docker logs. Результат (офферы + статус)
+  // пишется парсером в БД инкрементально, статус отслеживается через
+  // getRefreshStatus (query.live).
+  const child = spawn(
+    bin,
+    ['scrape', '--city', DEFAULT_CITY, '--db', dbPath, '--delay', '600ms'],
+    { detached: true, stdio: ['ignore', 'inherit', 'inherit'] }
+  );
+  child.on('error', (err) => {
+    console.error(`[prices] не удалось запустить парсер: ${err.message}`);
   });
+  child.unref();
 }
 
-/**
- * Ручной запуск парсера со страницы каталога. Пишет офферы в БД,
- * смета после этого считает по новым min-ценам.
- */
-export const refreshPrices = command(async () => {
-  const bin = resolvePricesBin();
-  if (!bin) {
-    throw error(
-      503,
-      'Бинарь парсера не найден. Соберите: cd parsers && go build -o ../parsers-bin ./cmd/prices'
-    );
+/** Live-статус обновления цен: стримит последний прогон, пока открыт каталог. */
+export const getRefreshStatus = query.live(async function* (): AsyncGenerator<{
+  run: PriceRun | null;
+}> {
+  let last = '';
+  for (;;) {
+    const run = await getLatestRun(getDb(), DEFAULT_CITY);
+    const key = run
+      ? `${run.id}:${run.status}:${run.finishedAt ?? ''}:${run.error ?? ''}`
+      : 'none';
+    if (key !== last) {
+      last = key;
+      yield { run };
+    }
+    await new Promise((r) => setTimeout(r, 2000));
   }
-  const { code, tail } = await runScrape(bin, resolveDbPath());
-  void getCatalogData().refresh();
-  void getPriceData().refresh();
-  if (code !== 0) {
-    throw error(500, `Парсер завершился с ошибкой:\n${tail}`);
-  }
-  return true;
 });
+
+/**
+ * Ручной запуск парсера со страницы каталога. Возвращается сразу после
+ * старта фонового процесса; прогресс виден через getRefreshStatus,
+ * итог (офферы) — через getPriceData после завершения прогона.
+ */
+export const refreshPrices = command(
+  async (): Promise<{ started: boolean }> => {
+    const bin = resolvePricesBin();
+    if (!bin) {
+      throw error(
+        503,
+        'Бинарь парсера не найден. Соберите: cd parsers && go build -o ../parsers-bin ./cmd/prices'
+      );
+    }
+    const running = await getLatestRun(getDb(), DEFAULT_CITY);
+    if (running?.status === 'running') {
+      throw error(409, 'Обновление цен уже запущено, дождитесь завершения');
+    }
+    runScrapeDetached(bin, resolveDbPath());
+    return { started: true };
+  }
+);
 
 export const setCatalogOverride = command(
   v.object({ id: idSchema, override: overrideSchema }),

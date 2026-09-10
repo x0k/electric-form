@@ -92,6 +92,29 @@ export function applyMarketMin(
   });
 }
 
+/** Последний прогон по городу (для live-статуса обновления цен). */
+export async function getLatestRun(
+  db: Db,
+  city: string = DEFAULT_CITY
+): Promise<PriceRun | null> {
+  const runs = await db
+    .select()
+    .from(priceRuns)
+    .where(eq(priceRuns.city, city))
+    .orderBy(desc(priceRuns.id))
+    .limit(1);
+  if (runs.length === 0) return null;
+  const r = runs[0];
+  return {
+    id: r.id,
+    city: r.city,
+    status: r.status,
+    error: r.error,
+    startedAt: r.startedAt,
+    finishedAt: r.finishedAt,
+  };
+}
+
 /** Офферы последнего завершенного прогона по городу (для UI каталога). */
 export async function getLatestOffers(
   db: Db,

@@ -4,8 +4,8 @@ import { calculate } from '#lib/calc/engine';
 import { createDefaultProject } from '#lib/project/defaults';
 import { getCatalog } from './catalog';
 import { createMemoryDb } from './client';
-import { applyMarketMin, getMarketMin } from './prices';
-import { priceOffers } from './schema';
+import { applyMarketMin, getLatestRun, getMarketMin } from './prices';
+import { priceOffers, priceRuns } from './schema';
 
 function offer(
   overrides: Partial<typeof priceOffers.$inferInsert> & {
@@ -116,5 +116,24 @@ describe('market min prices', () => {
     expect(lowered.totalRub).toBeLessThan(seedTotal);
     const line = lowered.lines.find((l) => l.materialId === cable.id);
     expect(line?.priceRub).toBe(Math.floor(cable.priceRub / 2));
+  });
+
+  it('getLatestRun возвращает последний прогон или null', async () => {
+    const db = createMemoryDb();
+    expect(await getLatestRun(db)).toBeNull();
+    const now = new Date().toISOString();
+    await db
+      .insert(priceRuns)
+      .values({ city: 'syktyvkar', status: 'running', startedAt: now });
+    await db.insert(priceRuns).values({
+      city: 'syktyvkar',
+      status: 'partial',
+      error: '1/3 без офферов',
+      startedAt: now,
+      finishedAt: now,
+    });
+    const run = await getLatestRun(db);
+    expect(run?.status).toBe('partial');
+    expect(run?.error).toBe('1/3 без офферов');
   });
 });

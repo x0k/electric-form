@@ -8,7 +8,7 @@
   <svelte:boundary>
     {const data = $derived(await getCatalogData())}
     {const prices = $derived(await getPriceData())}
-    <MarketPricesPanel run={prices.run} />
+    <MarketPricesPanel />
     <CatalogEditor
       base={data.base}
       serverOverrides={data.overrides}

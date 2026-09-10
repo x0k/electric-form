@@ -15,8 +15,11 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"log"
 	"os"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"electric-form/parsers/internal/fetch"
@@ -120,14 +123,21 @@ func scrape(o options) int {
 	if err != nil {
 		fatal(fmt.Sprintf("mapping: %v", err))
 	}
-	fc, err := fetch.New(o.delay)
-	if err != nil {
-		fatal(err.Error())
+	// Конкурентный опрос магазинов: у каждого магазина свой fetch-клиент
+	// (свой rate-limit, без общего состояния), запросы одного материала
+	// идут параллельно. Результаты конкурентных вызовов сохраняются
+	// независимо: падение одного магазина не отменяет офферы остальных.
+	newClient := func() *fetch.Client {
+		fc, err := fetch.New(o.delay)
+		if err != nil {
+			fatal(err.Error())
+		}
+		return fc
 	}
 	allShops := []shops.Shop{
-		shops.Orion{Base: "https://orionsvet.com", HTTP: fc},
-		shops.Kristall{Base: fmt.Sprintf("https://%s.kristall43.ru", kristallSub(o.city)), HTTP: fc},
-		shops.Mkrep{Base: "https://mkrep.ru", HTTP: fc},
+		shops.Orion{Base: "https://orionsvet.com", HTTP: newClient()},
+		shops.Kristall{Base: fmt.Sprintf("https://%s.kristall43.ru", kristallSub(o.city)), HTTP: newClient()},
+		shops.Mkrep{Base: "https://mkrep.ru", HTTP: newClient()},
 	}
 	wantShops := splitSet(o.shops)
 	var active []shops.Shop
@@ -154,24 +164,47 @@ func scrape(o options) int {
 
 	sum := summary{RunID: runID, City: o.city, Status: "ok"}
 	failCount := 0
-	for matID, entry := range mp.Materials {
+	// Детерминированный порядок материалов для стабильных логов.
+	matIDs := make([]string, 0, len(mp.Materials))
+	for matID := range mp.Materials {
 		if len(only) > 0 && !only[matID] {
 			continue
 		}
+		matIDs = append(matIDs, matID)
+	}
+	sort.Strings(matIDs)
+	for _, matID := range matIDs {
+		entry := mp.Materials[matID]
 		res := materialResult{MaterialID: matID, Query: entry.Query}
+		// Магазины опрашиваются конкурентно: падение одного не отменяет
+		// результаты остальных — офферы каждого успешного вызова сохраняются.
+		var mu sync.Mutex
 		var found []shops.Offer
+		var wg sync.WaitGroup
 		for _, s := range active {
-			q := entry.Query
-			if v, ok := entry.Search[s.Name()]; ok && v != "" {
-				q = v
-			}
-			offers, err := s.Search(ctx, q)
-			if err != nil {
-				res.Errors = append(res.Errors, s.Name()+": "+err.Error())
-				continue
-			}
-			found = append(found, offers...)
+			wg.Add(1)
+			go func(s shops.Shop) {
+				defer wg.Done()
+				q := entry.Query
+				if v, ok := entry.Search[s.Name()]; ok && v != "" {
+					q = v
+				}
+				offers, err := s.Search(ctx, q)
+				mu.Lock()
+				defer mu.Unlock()
+				if err != nil {
+					msg := s.Name() + ": " + err.Error()
+					res.Errors = append(res.Errors, msg)
+					// В stderr — подхватывается docker logs.
+					log.Printf("prices run=%d material=%s shop=%s error=%v", runID, matID, s.Name(), err)
+					return
+				}
+				log.Printf("prices run=%d material=%s shop=%s offers=%d", runID, matID, s.Name(), len(offers))
+				found = append(found, offers...)
+			}(s)
 		}
+		wg.Wait()
+		sort.Slice(res.Errors, func(i, j int) bool { return res.Errors[i] < res.Errors[j] })
 		res.Offers = len(found)
 		if best, ok := match.Best(entry.Query, found, entry.MinWords, entry.Exclude); ok {
 			b := best
@@ -180,10 +213,12 @@ func scrape(o options) int {
 		if !o.dryRun && len(found) > 0 {
 			if err := store.SaveOffers(db, runID, o.city, matID, found); err != nil {
 				res.Errors = append(res.Errors, "store: "+err.Error())
+				log.Printf("prices run=%d material=%s store error=%v", runID, matID, err)
 			}
 		}
 		if len(found) == 0 {
 			failCount++
+			log.Printf("prices run=%d material=%s no offers errors=%v", runID, matID, res.Errors)
 		}
 		sum.Materials = append(sum.Materials, res)
 	}
