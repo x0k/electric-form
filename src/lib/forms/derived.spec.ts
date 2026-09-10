@@ -20,6 +20,7 @@ function general(over: Partial<General> = {}): General {
     stage: 'whitebox',
     doorsCount: 0,
     socketsEstimate: 0,
+    corrugation: false,
     phases: '1',
     mainBreakerA: 40,
     grounding: 'unknown',
@@ -47,14 +48,8 @@ describe('derived', () => {
     expect(deriveWifiAP(big)).toBe(3);
   });
 
-  it('цели идут в порядке зависимостей', () => {
+  it('цели живой синхронизации — только структурные', () => {
     const paths = deriveTargets(general()).map((t) => t.path.join('.'));
-    expect(paths).toEqual([
-      'general.doorsCount',
-      'lighting.groups',
-      'lowVoltage.tvOutlets',
-      'lowVoltage.wifiAP',
-      'lowVoltage.ethernetPoints',
-    ]);
+    expect(paths).toEqual(['general.doorsCount', 'lighting.groups']);
   });
 });

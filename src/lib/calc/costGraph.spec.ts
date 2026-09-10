@@ -34,6 +34,7 @@ describe('cost graph', () => {
 
   it('подпись листа показывает переход запаса как таблица', () => {
     const p = createDefaultProject('w');
+    p.sensors.supRequired = true;
     const r = calculate(p, SEED_CATALOG);
     const lines = r.lines.filter((l) => l.stage === 'rough');
     const tree = buildStageGraph('Этап', '', lines);

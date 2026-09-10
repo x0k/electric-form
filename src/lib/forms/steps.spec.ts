@@ -25,13 +25,13 @@ describe('7 steps', () => {
     const p = createDefaultProject('x');
     expect(parseProject(p).ok).toBe(true);
     expect('bathrooms' in (p as object)).toBe(false);
-    expect(p.sensors.supRequired).toBe(true);
+    expect(p.sensors.supRequired).toBe(false);
     const ids = calculate(p, SEED_CATALOG).lines.map((l) => l.materialId);
-    expect(ids).toContain('sup-kit');
-    const off = createDefaultProject('y');
-    off.sensors.supRequired = false;
-    const ids2 = calculate(off, SEED_CATALOG).lines.map((l) => l.materialId);
-    expect(ids2).not.toContain('sup-kit');
+    expect(ids).not.toContain('sup-kit');
+    const on = createDefaultProject('y');
+    on.sensors.supRequired = true;
+    const ids2 = calculate(on, SEED_CATALOG).lines.map((l) => l.materialId);
+    expect(ids2).toContain('sup-kit');
   });
   it('conditioner is an ordinary power consumer; chase needs qty', () => {
     const base = createDefaultProject('base');
@@ -59,6 +59,7 @@ describe('7 steps', () => {
   });
   it('автоматика — чистовой этап итога, СУП — черновой', () => {
     const p = createDefaultProject('stages');
+    p.sensors.supRequired = true;
     p.sensors.leakQty = 2;
     p.sensors.valveQty = 2;
     p.sensors.smokeQty = 2;

@@ -97,4 +97,16 @@ describe('engine v1', () => {
     const rb = calculate(b, SEED_CATALOG);
     expect(rb.panelModules).toBeGreaterThan(ra.panelModules);
   });
+
+  it('гофра выключена по умолчанию и включается тумблером', () => {
+    const base = createDefaultProject('base');
+    expect(base.general.corrugation).toBe(false);
+    const r1 = calculate(base, SEED_CATALOG);
+    expect(r1.lines.some((l) => l.ruleId === 'cable-corrugation')).toBe(false);
+    const withCorr = createDefaultProject('with');
+    withCorr.general.corrugation = true;
+    const r2 = calculate(withCorr, SEED_CATALOG);
+    expect(r2.lines.some((l) => l.ruleId === 'cable-corrugation')).toBe(true);
+    expect(r2.totalRub).toBeGreaterThan(r1.totalRub);
+  });
 });

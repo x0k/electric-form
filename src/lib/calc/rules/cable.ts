@@ -54,6 +54,7 @@ export const cableRules: Rule[] = [
     label: 'Гофра под кабель',
     category: 'mounting',
     stage: 'rough',
+    when: (p) => p.general.corrugation,
     apply: (p) => {
       const sockets = estimateSockets(p);
       const qty =

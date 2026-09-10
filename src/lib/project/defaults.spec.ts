@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { createDefaultProject } from '#lib/project/defaults';
 import {
   deriveDoorsCount,
-  deriveEthernetPoints,
   deriveLightingGroups,
   deriveTvOutlets,
   deriveWifiAP,
@@ -19,11 +18,16 @@ describe('дефолт проекта', () => {
     const g = p.general;
     expect(p.lighting.groups).toBe(deriveLightingGroups(g));
     expect(g.doorsCount).toBe(deriveDoorsCount(g));
-    expect(p.lowVoltage.tvOutlets).toBe(deriveTvOutlets(g));
-    expect(p.lowVoltage.wifiAP).toBe(deriveWifiAP(g));
-    expect(p.lowVoltage.ethernetPoints).toBe(
-      deriveEthernetPoints(p.lowVoltage.tvOutlets, p.lowVoltage.wifiAP)
-    );
+  });
+
+  it('слаботочка по умолчанию нули — включается явно', () => {
+    const p = createDefaultProject();
+    expect(p.lowVoltage.tvOutlets).toBe(0);
+    expect(p.lowVoltage.wifiAP).toBe(0);
+    expect(p.lowVoltage.ethernetPoints).toBe(0);
+    // Формулы типовых живы и используются кнопкой «Заполнить типовые».
+    expect(deriveTvOutlets(p.general)).toBeGreaterThan(0);
+    expect(deriveWifiAP(p.general)).toBeGreaterThan(0);
   });
 
   it('не содержит тихого присутствия вне производных', () => {

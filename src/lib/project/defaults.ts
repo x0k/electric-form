@@ -1,10 +1,4 @@
-import {
-  deriveDoorsCount,
-  deriveEthernetPoints,
-  deriveLightingGroups,
-  deriveTvOutlets,
-  deriveWifiAP,
-} from '#lib/forms/derived';
+import { deriveDoorsCount, deriveLightingGroups } from '#lib/forms/derived';
 import { PANEL_DEFAULTS, type ConsumerKindSchema } from './schemas';
 import type * as v from 'valibot';
 import type { Project } from './types';
@@ -80,13 +74,12 @@ export function createDefaultProject(name = 'Новая квартира'): Proj
     stage: 'whitebox' as const,
     doorsCount: 0,
     socketsEstimate: 0,
+    corrugation: false,
     phases: '1' as const,
     mainBreakerA: 40,
     grounding: 'unknown' as const,
     inputA: 40,
   };
-  const tv = deriveTvOutlets(generalBase);
-  const wifi = deriveWifiAP(generalBase);
   const general = {
     ...generalBase,
     doorsCount: deriveDoorsCount(generalBase),
@@ -106,9 +99,11 @@ export function createDefaultProject(name = 'Новая квартира'): Proj
       conditionerChase: false,
     },
     lowVoltage: {
-      ethernetPoints: deriveEthernetPoints(tv, wifi),
-      tvOutlets: tv,
-      wifiAP: wifi,
+      // Нули: слаботочку пользователь включает явно (кнопка «Заполнить
+      // типовые»), дефолт не должен класть деньги в смету.
+      ethernetPoints: 0,
+      tvOutlets: 0,
+      wifiAP: 0,
       poe: false,
       intercom: false,
       cameras: 0,
@@ -137,7 +132,7 @@ export function createDefaultProject(name = 'Новая квартира'): Proj
       openSensor: false,
       temp: false,
       smartHome: false,
-      supRequired: true,
+      supRequired: false,
     },
     panel: {
       reserveModules: 0,

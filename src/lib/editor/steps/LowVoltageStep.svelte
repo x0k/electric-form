@@ -4,6 +4,7 @@
     deriveEthernetPoints,
     deriveTvOutlets,
     deriveWifiAP,
+    fillLowVoltageDefaults,
   } from '#lib/forms/derived';
   import NumberField from '#lib/forms/fields/NumberField.svelte';
   import ToggleField from '#lib/forms/fields/ToggleField.svelte';
@@ -24,8 +25,18 @@
 </script>
 
 <p class="mb-2 text-sm opacity-70">
-  Интернет, ТВ и видеонаблюдение. Оставьте нули, если не нужно.
+  Интернет, ТВ и видеонаблюдение. По умолчанию нули — ничего не считаем, пока не
+  попросите. Типовые для этой квартиры: Ethernet {ethAuto}, ТВ
+  {tvAuto}, Wi-Fi {wifiAuto}.
 </p>
+<button
+  type="button"
+  class="btn btn-outline mb-3 w-full"
+  title="Проставит типовые количества как явный ввод"
+  onclick={() => fillLowVoltageDefaults(form, view)}
+>
+  Заполнить типовые
+</button>
 <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
   <NumberField
     {form}

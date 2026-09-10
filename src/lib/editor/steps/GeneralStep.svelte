@@ -62,6 +62,12 @@
     <ToggleField {form} path={['general', 'balcony']} label="Балкон/лоджия" />
     <ToggleField
       {form}
+      path={['general', 'corrugation']}
+      label="Кабель в гофре"
+      hint="Гофра под кабель в штробах и перекрытиях"
+    />
+    <ToggleField
+      {form}
       path={['general', 'noLayoutMode']}
       label="Пока нет точной планировки"
       hint="Расчёт по типовым значениям"

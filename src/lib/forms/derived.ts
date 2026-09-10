@@ -52,19 +52,13 @@ export interface DerivedTarget {
   value: number;
 }
 
-/** Цели в порядке зависимостей: ethernet считается от свежих tv/wifi. */
+/** Цели живой синхронизации: только структурные (двери, группы света).
+ * Слаботочка больше не подставляется молча — только кнопкой «Заполнить
+ * типовые», иначе дефолт клал бы деньги в смету без ведома пользователя. */
 export function deriveTargets(g: General): DerivedTarget[] {
-  const tv = deriveTvOutlets(g);
-  const wifi = deriveWifiAP(g);
   return [
     { path: ['general', 'doorsCount'], value: deriveDoorsCount(g) },
     { path: ['lighting', 'groups'], value: deriveLightingGroups(g) },
-    { path: ['lowVoltage', 'tvOutlets'], value: tv },
-    { path: ['lowVoltage', 'wifiAP'], value: wifi },
-    {
-      path: ['lowVoltage', 'ethernetPoints'],
-      value: deriveEthernetPoints(tv, wifi),
-    },
   ];
 }
 
@@ -159,4 +153,30 @@ export function fillProcurementBlanks(
     filled += 1;
   }
   return filled;
+}
+
+/**
+ * Кнопка «Заполнить типовые» для слаботочки: проставляет формулы
+ * (ТВ/Wi-Fi от планировки, ethernet — от них) как явный ввод.
+ * Введённое остаётся edited — это осознанные данные (reset намеренно нет).
+ * @returns число полей (всегда 3).
+ */
+export function fillLowVoltageDefaults(
+  form: ProjectForm,
+  view: Project
+): number {
+  const tv = deriveTvOutlets(view.general);
+  const wifi = deriveWifiAP(view.general);
+  const targets = [
+    { path: ['lowVoltage', 'tvOutlets'], value: tv },
+    { path: ['lowVoltage', 'wifiAP'], value: wifi },
+    {
+      path: ['lowVoltage', 'ethernetPoints'],
+      value: deriveEthernetPoints(tv, wifi),
+    },
+  ] as const;
+  for (const t of targets) {
+    setInput(form, { path: t.path as any, input: t.value as never });
+  }
+  return targets.length;
 }

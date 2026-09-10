@@ -55,6 +55,8 @@ export const GeneralSchema = v.object({
   doorsCount: int(0, 30),
   /** Ручная оценка точек; 0 = автооценка. */
   socketsEstimate: int(0, 300),
+  /** Кабель в гофре (штробы, перекрытия); выкл — прокладка без гофры. */
+  corrugation: v.boolean(),
   /** Ввод в квартиру: свойства сети здания, а не щита. */
   phases: PhasesSchema,
   mainBreakerA: int(10, 100),
