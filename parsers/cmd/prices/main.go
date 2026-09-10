@@ -23,6 +23,7 @@ import (
 	"electric-form/parsers/internal/match"
 	"electric-form/parsers/internal/shops"
 	"electric-form/parsers/internal/store"
+	"electric-form/parsers/mappings"
 )
 
 type mappingEntry struct {
@@ -84,7 +85,7 @@ func flagsFor(fs *flag.FlagSet) *options {
 	o := &options{}
 	fs.StringVar(&o.city, "city", "syktyvkar", "город (поддомен kristall43, фильтр выборки)")
 	fs.StringVar(&o.db, "db", "", "путь к app.db (по умолчанию как в SvelteKit)")
-	fs.StringVar(&o.mapping, "mapping", "mappings/seed-mapping.json", "путь к маппингу запросов")
+	fs.StringVar(&o.mapping, "mapping", "", "путь к маппингу запросов (по умолчанию встроенный)")
 	fs.StringVar(&o.only, "only", "", "только материалы через запятую")
 	fs.StringVar(&o.shops, "shops", "orion,kristall,mkrep", "магазины через запятую")
 	fs.BoolVar(&o.dryRun, "dry-run", false, "не писать в БД, только stdout")
@@ -230,7 +231,7 @@ func splitSet(s string) map[string]bool {
 }
 
 func loadMapping(path string) (*mapping, error) {
-	b, err := os.ReadFile(path)
+	b, err := mappingBytes(path)
 	if err != nil {
 		return nil, err
 	}
@@ -239,6 +240,25 @@ func loadMapping(path string) (*mapping, error) {
 		return nil, err
 	}
 	return &mp, nil
+}
+
+// mappingBytes возвращает маппинг: внешний файл при --mapping,
+// иначе встроенный. Легаси-дефолт "mappings/seed-mapping.json" (который
+// раньше падал в проде из-за отсутствия файла рядом с бинарём) тоже
+// откатывается на встроенный, а не на ошибку.
+func mappingBytes(path string) ([]byte, error) {
+	if path == "" || path == "mappings/seed-mapping.json" {
+		if path != "" {
+			if b, err := os.ReadFile(path); err == nil {
+				return b, nil
+			}
+		}
+		if len(mappings.Seed) == 0 {
+			return nil, fmt.Errorf("embedded mapping is empty")
+		}
+		return mappings.Seed, nil
+	}
+	return os.ReadFile(path)
 }
 
 func fatal(msg string) {

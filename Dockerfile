@@ -38,6 +38,8 @@ COPY --from=build /app/build ./build
 COPY --from=build /app/drizzle ./drizzle
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=prices /out/parsers-bin ./parsers-bin
+# Копия для явного --mapping (по умолчанию бинарь использует встроенный).
+COPY parsers/mappings/ ./mappings/
 COPY package.json ./
 VOLUME /data
 EXPOSE 3000
