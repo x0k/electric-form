@@ -49,8 +49,10 @@
     "#lib/*": "./src/lib/*"
   },
   "dependencies": {
+    "@dagrejs/dagre": "^3.1.1",
     "@formisch/svelte": "^1.0.0",
     "@lucide/svelte": "^1.0.0",
+    "@xyflow/svelte": "^1.6.6",
     "daisyui": "^5.4.0",
     "pikaday": "^1.8.2",
     "svelte": "^5.34.8",

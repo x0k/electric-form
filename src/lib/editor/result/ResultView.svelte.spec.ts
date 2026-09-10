@@ -85,3 +85,49 @@ describe('ResultView категории', () => {
     }
   });
 });
+
+describe('ResultView граф затрат', () => {
+  it('кнопка открывает полноэкранную схему, листы свернуты', async () => {
+    await render(ResultViewHarness);
+    const { result } = fixture();
+    // Топ-позиция категории «Кабель» — она же превью в подписи узла.
+    const topCable = result.lines
+      .filter((l) => l.stage === 'rough' && l.category === 'cable')
+      .sort((a, b) => b.sumRub - a.sumRub)[0];
+    const roughName = topCable?.materialName;
+    expect(roughName).toBeTruthy();
+
+    await page.getByRole('button', { name: 'Схема' }).first().click();
+    const dialog = page.getByRole('dialog');
+    await expect.element(dialog).toBeVisible();
+    await expect
+      .element(
+        dialog.getByRole('heading', { name: 'Этап 1 — черновой монтаж' })
+      )
+      .toBeVisible();
+
+    // Категория видна; лист-узел скрыт (свернут), но имя топ-позиции
+    // уже есть в подписи категории — ровно одно вхождение.
+    // Подпись листа (кол-во → запас) уникальна — её пока нет.
+    const leafSub = `${topCable.qty} → ${topCable.qtyWithWaste} м × ${topCable.priceRub} ₽`;
+    await expect
+      .element(dialog.getByText('Кабель', { exact: true }))
+      .toBeVisible();
+    expect(
+      (await dialog.getByText(roughName!, { exact: false }).elements()).length
+    ).toBe(1);
+    expect(
+      (await dialog.getByText(leafSub, { exact: false }).elements()).length
+    ).toBe(0);
+
+    // Клик по категории раскрывает листы — подпись листа появляется.
+    await dialog.getByText('Кабель', { exact: true }).click();
+    await expect
+      .element(dialog.getByText(leafSub, { exact: false }).first())
+      .toBeVisible();
+
+    // ✕ закрывает.
+    await dialog.getByRole('button', { name: 'Закрыть схему' }).click();
+    expect((await page.getByRole('dialog').elements()).length).toBe(0);
+  });
+});

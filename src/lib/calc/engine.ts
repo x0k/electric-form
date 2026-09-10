@@ -72,10 +72,13 @@ export function calculate(project: Project, catalog: Material[]): CalcResult {
       if (!mat || spec.qty <= 0) continue;
       const wastePct = mat.wastePct ?? DEFAULT_WASTE_PCT[mat.category];
       const qty = roundQty(mat.unit, spec.qty);
+      // Запас — для расходников (метры, bulk-штуки). Неделимые комплекты
+      // и мелочь < 5 шт не дублируем: лишний СУП или карниз — не «запас»,
+      // а отдельная покупка.
       const qtyWithWaste =
-        mat.unit === 'pcs' && qty < 5
-          ? qty
-          : Math.ceil(qty * (1 + wastePct / 100));
+        mat.unit === 'm' || qty >= 5
+          ? Math.ceil(qty * (1 + wastePct / 100))
+          : qty;
       const sumRub = qtyWithWaste * mat.priceRub;
       lines.push({
         materialId: mat.id,

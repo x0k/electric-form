@@ -1,7 +1,26 @@
 <script lang="ts">
+  import {
+    Calculator,
+    CircuitBoard,
+    ClipboardList,
+    Lightbulb,
+    Plug,
+    ShieldCheck,
+    Wifi,
+  } from '@lucide/svelte';
   import { STEPS } from '#lib/forms/steps';
 
   type StepStatus = 'current' | 'error' | 'done' | 'todo';
+
+  const STEP_ICONS: Record<string, typeof Plug> = {
+    general: ClipboardList,
+    power: Plug,
+    lighting: Lightbulb,
+    lowvoltage: Wifi,
+    sensors: ShieldCheck,
+    panel: CircuitBoard,
+    result: Calculator,
+  };
 
   let {
     step,
@@ -67,6 +86,7 @@
     <ul class="menu mt-2 flex-1 gap-1 p-0">
       {#each STEPS as s, i (s.id)}
         {@const st = status(i)}
+        {@const Icon = STEP_ICONS[s.id] ?? Calculator}
         <li>
           <button
             class="min-h-14 items-center gap-3 rounded-xl px-3 py-2 text-left active:scale-[0.99]"
@@ -87,7 +107,10 @@
               <span class="badge badge-ghost shrink-0">{i + 1}</span>
             {/if}
             <span class="min-w-0 flex-1">
-              <span class="block font-medium">{s.title}</span>
+              <span class="flex items-center gap-1.5 font-medium">
+                <Icon size={15} class="shrink-0 opacity-60" />
+                <span class="truncate">{s.title}</span>
+              </span>
               <span class="block text-xs opacity-60">
                 {label(i)}
               </span>

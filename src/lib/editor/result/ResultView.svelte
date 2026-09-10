@@ -11,6 +11,9 @@
   import type { Saving } from '#lib/calc/savings';
   import { formatSummary } from '#lib/calc/summary';
   import type { Project } from '#lib/project/types';
+  import { browser } from '$app/env';
+  import CostGraphModal from './CostGraphModal.svelte';
+  import { CATEGORY_STYLES } from './costStyle';
 
   let {
     form,
@@ -92,6 +95,15 @@
       ?.writeText(formatSummary(view, result, savings))
       .catch(() => {});
   }
+
+  // Полноэкранный граф затрат этапа (null — закрыт).
+  let graphStage = $state<WorkStage | null>(null);
+  const graphLines = $derived(
+    graphStage ? result.lines.filter((l) => l.stage === graphStage) : []
+  );
+  const graphTitle = $derived(
+    graphStage ? (STAGES.find((s) => s.id === graphStage)?.title ?? '') : ''
+  );
 </script>
 
 {#snippet group(
@@ -99,17 +111,28 @@
   title: string,
   badge: string,
   sum: number,
-  lines: BOMLine[]
+  lines: BOMLine[],
+  cat: CostCategory
 )}
   {@const open = openGroups.includes(key)}
+  {@const st = CATEGORY_STYLES[cat]}
+  {@const Icon = st.Icon}
   <details
     class="p-2"
     {open}
     ontoggle={(e) => onToggleGroup(key, e.currentTarget.open)}
   >
     <summary class="flex cursor-pointer items-center justify-between gap-2">
-      <span class="min-w-0 flex-1 truncate"
-        >{title}
+      <span class="min-w-0 flex-1 truncate">
+        <span
+          aria-hidden="true"
+          class="mr-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded align-middle"
+          style:background={`${st.color}22`}
+          style:color={st.color}
+        >
+          <Icon size={13} />
+        </span>
+        {title}
         <span class="badge badge-ghost badge-xs ml-1 align-middle">{badge}</span
         ></span
       ><span class="shrink-0 font-medium tabular-nums">{fmt(sum)}</span>
@@ -167,10 +190,19 @@
         >{fmt(result.stageTotals[s.id])}</span
       >
     </div>
-    <p class="text-xs opacity-60">
-      {days.min}–{days.max} раб. дн.{#if s.id === 'finish'}
-        {finishCaption}{/if}
-    </p>
+    <div class="mt-1 flex items-center justify-between gap-2">
+      <p class="text-xs opacity-60">
+        {days.min}–{days.max} раб. дн.{#if s.id === 'finish'}
+          {finishCaption}{/if}
+      </p>
+      <button
+        type="button"
+        class="btn btn-ghost btn-xs shrink-0"
+        onclick={() => (graphStage = s.id)}
+      >
+        Схема
+      </button>
+    </div>
     {#if s.id === 'finish'}
       <div class="mt-1">
         <ToggleField
@@ -190,7 +222,8 @@
           COST_CATEGORY_LABELS[c],
           String(lines.length),
           sum,
-          lines
+          lines,
+          c
         )}
       {/each}
     </div>
@@ -213,7 +246,8 @@
       'Своими силами (ставит заказчик)',
       String(result.excludedLines.length),
       result.excludedTotalRub,
-      result.excludedLines
+      result.excludedLines,
+      'sockets'
     )}
   </div>
 {/if}
@@ -263,3 +297,13 @@
     >Скопировать смету текстом</button
   >
 </div>
+
+{#if browser && graphStage}
+  <CostGraphModal
+    stage={graphStage}
+    title={graphTitle}
+    sub={`${result.stageDays[graphStage].min}–${result.stageDays[graphStage].max} раб. дн.`}
+    lines={graphLines}
+    onclose={() => (graphStage = null)}
+  />
+{/if}
