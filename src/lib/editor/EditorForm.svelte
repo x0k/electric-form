@@ -8,6 +8,7 @@
     reset,
     validate,
   } from '@formisch/svelte';
+  import type { DeepErrorEntry } from '@formisch/svelte';
   import * as v from 'valibot';
   import { calculate } from '#lib/calc/engine';
   import { calcSavings } from '#lib/calc/savings';
@@ -18,6 +19,7 @@
   } from '#lib/catalog/index';
   import { loadOverrides } from '#lib/storage/repo';
   import { createProjectForm } from '#lib/forms/ctx';
+  import type { ProjectInput } from '#lib/forms/ctx';
   import { applyDerivedFields, deriveKey } from '#lib/forms/derived';
   import { STEPS } from '#lib/forms/steps';
   import { ProjectSchema } from '#lib/project/schemas';
@@ -58,7 +60,7 @@
   // Свободная навигация: этапы не блокируются, состояние видно по бейджам.
   let visited = new SvelteSet<number>([0]);
   let stepErrCounts = $state<number[]>(STEPS.map(() => 0));
-  let allErrors = $state<{ path: string; message: string }[]>([]);
+  let allErrors = $state<ErrorItem[]>([]);
   let validatedOnce = $state(false);
   let saved = $state(true);
 
@@ -114,14 +116,23 @@
   const result = $derived(calculate(view, catalog));
   const savings = $derived(calcSavings(view, catalog));
 
-  function entriesFor(stepIdx: number, entries: { path: unknown }[]): number {
+  function entriesFor(
+    stepIdx: number,
+    entries: DeepErrorEntry<ProjectInput>[]
+  ): number {
     const paths = STEPS[stepIdx]?.paths ?? [];
     return entries.filter((e) => {
-      const segs = e.path as readonly (string | number)[];
+      const segs: readonly (string | number)[] = e.path;
       return paths.some((prefix) =>
         prefix.every((s, i) => String(segs[i]) === s)
       );
     }).length;
+  }
+
+  interface ErrorItem {
+    label: string;
+    message: string;
+    target: DeepErrorEntry<ProjectInput>['path'];
   }
 
   async function refreshValidation() {
@@ -129,8 +140,12 @@
     const entries = getDeepErrorEntries(form);
     stepErrCounts = STEPS.map((_, i) => entriesFor(i, entries));
     allErrors = entries.map((e) => {
-      const segs = e.path as readonly (string | number)[];
-      return { path: segs.join('.') || '—', message: e.errors[0] ?? 'ошибка' };
+      const segs: readonly (string | number)[] = e.path;
+      return {
+        label: segs.join('.') || '—',
+        message: e.errors[0] ?? 'ошибка',
+        target: e.path,
+      };
     });
     validatedOnce = true;
   }
@@ -157,12 +172,15 @@
     await go(to);
   }
 
-  function focusError(path: string) {
-    if (path === '—') return;
-    const segs = path.split('.');
-    const pathArr = segs.map((s) => (/^\d+$/.test(s) ? Number(s) : s));
+  type ErrorPath = DeepErrorEntry<ProjectInput>['path'];
+
+  function focusError(target: ErrorPath) {
+    // Пустой путь — ошибка уровня формы, фокусировать нечего.
+    if (target.length === 0) return;
     try {
-      focus(form, { path: pathArr as never });
+      focus<typeof ProjectSchema, Exclude<ErrorPath, readonly []>>(form, {
+        path: target,
+      });
     } catch {
       // ignore: путь мог устареть
     }
@@ -202,11 +220,11 @@
       {#if STEPS[step].id === 'result' && validatedOnce && totalErrors > 0}
         <div class="alert alert-error mt-3 text-sm">
           <ul>
-            {#each allErrors as e (e.path + e.message)}
+            {#each allErrors as e (e.label + e.message)}
               <li>
                 <button
                   class="link link-hover font-mono"
-                  onclick={() => focusError(e.path)}><b>{e.path}</b></button
+                  onclick={() => focusError(e.target)}><b>{e.label}</b></button
                 >: {e.message}
               </li>
             {/each}

@@ -9,7 +9,7 @@
   // Панель настроек потребителя — поверх списка, место в потоке не занимает.
   let openKind = $state<string | null>(null);
 
-  type QtyField = { onInput: (value: never) => void };
+  type QtyField = { onInput: (value: number | undefined) => void };
 
   // Единая точка изменения количества: переход 0 → >0 сам ставит отдельную
   // линию. Снятую вручную галку не трогаем — сюда попадаем только из
@@ -20,13 +20,13 @@
     prev: number,
     next: number | undefined
   ): void {
-    f.onInput(next as never);
+    f.onInput(next);
     if (typeof next !== 'number' || Number.isNaN(next)) return;
     if (prev <= 0 && next > 0) {
       if (view.power.consumers[idx]?.dedicatedLine === false) {
         setInput(form, {
-          path: ['power', 'consumers', idx, 'dedicatedLine'] as any,
-          input: true as never,
+          path: ['power', 'consumers', idx, 'dedicatedLine'] as const,
+          input: true,
         });
       }
     }
@@ -42,8 +42,8 @@
       view.power.conditionerChase
     ) {
       setInput(form, {
-        path: ['power', 'conditionerChase'] as any,
-        input: false as never,
+        path: ['power', 'conditionerChase'] as const,
+        input: false,
       });
     }
   }
@@ -106,7 +106,7 @@
                 class:input-error={!!qErr}
                 value={typeof f.input === 'number' && Number.isNaN(f.input)
                   ? undefined
-                  : (f.input as number | undefined)}
+                  : f.input}
                 min="0"
                 max="10"
                 inputmode="numeric"
@@ -160,8 +160,7 @@
                       type="checkbox"
                       class="checkbox"
                       checked={!!f.input}
-                      oninput={(e) =>
-                        f.onInput(e.currentTarget.checked as never)}
+                      oninput={(e) => f.onInput(e.currentTarget.checked)}
                     />
                     закладка трасс
                   </label>
@@ -201,7 +200,7 @@
                     class:input-error={!!pErr}
                     value={typeof f.input === 'number' && Number.isNaN(f.input)
                       ? undefined
-                      : (f.input as number | undefined)}
+                      : f.input}
                     min="0"
                     max="15"
                     step="0.1"
@@ -211,7 +210,7 @@
                       f.onInput(
                         e.currentTarget.value === ''
                           ? undefined
-                          : (e.currentTarget.valueAsNumber as never)
+                          : e.currentTarget.valueAsNumber
                       )}
                   />
                   <span class="opacity-60">кВт</span>

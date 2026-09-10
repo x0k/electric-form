@@ -1,6 +1,7 @@
 <script lang="ts">
   import { useField } from '@formisch/svelte';
-  import type { ProjectForm } from '#lib/forms/ctx';
+  import type { ProjectForm, StringPath } from '#lib/forms/ctx';
+  import { ProjectSchema } from '#lib/project/schemas';
   import FieldShell from './FieldShell.svelte';
 
   let {
@@ -11,13 +12,13 @@
     hint = '',
   }: {
     form: ProjectForm;
-    path: any;
+    path: StringPath;
     label: string;
     options: readonly { value: string; label: string; hint?: string }[];
     hint?: string;
   } = $props();
 
-  const field = useField(
+  const field = useField<typeof ProjectSchema, StringPath>(
     () => form,
     () => ({ path })
   );
@@ -26,7 +27,7 @@
       ? (field.errors[0] ?? null)
       : null
   );
-  const current = $derived(field.input as string | undefined);
+  const current = $derived(field.input);
   const selectedHint = $derived(
     options.find((o) => o.value === current)?.hint ?? ''
   );
@@ -47,7 +48,7 @@
         class="btn min-h-11"
         class:btn-primary={current === o.value}
         class:btn-outline={current !== o.value}
-        onclick={() => field.onInput(o.value as never)}
+        onclick={() => field.onInput(o.value)}
       >
         {o.label}
       </button>

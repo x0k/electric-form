@@ -1,6 +1,7 @@
 <script lang="ts">
   import { useField } from '@formisch/svelte';
-  import type { ProjectForm } from '#lib/forms/ctx';
+  import type { NumberPath, ProjectForm } from '#lib/forms/ctx';
+  import { ProjectSchema } from '#lib/project/schemas';
   import FieldShell from './FieldShell.svelte';
 
   let {
@@ -15,7 +16,7 @@
     autoValue,
   }: {
     form: ProjectForm;
-    path: any;
+    path: NumberPath;
     label: string;
     hint?: string;
     min?: number;
@@ -27,7 +28,7 @@
     autoValue?: number;
   } = $props();
 
-  const field = useField(
+  const field = useField<typeof ProjectSchema, NumberPath>(
     () => form,
     () => ({ path })
   );
@@ -39,7 +40,7 @@
   // NaN бывает при промежуточном вводе ("-", "1e") — показываем пусто,
   // в сторе при этом лежит NaN и валидация его подсветит.
   const validNum = $derived(() => {
-    const v = field.input as number | undefined;
+    const v = field.input;
     return typeof v === 'number' && !Number.isNaN(v) ? v : undefined;
   });
   const display = $derived(validNum());
@@ -70,7 +71,7 @@
 
   function nudge(dir: 1 | -1) {
     const base = validNum() ?? min ?? 0;
-    field.onInput(clamp(base + dir * step) as never);
+    field.onInput(clamp(base + dir * step));
   }
 </script>
 

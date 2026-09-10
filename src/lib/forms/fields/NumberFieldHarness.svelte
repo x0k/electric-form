@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createProjectForm, type ProjectForm } from '#lib/forms/ctx';
+  import type { NumberPath } from '#lib/forms/ctx';
   import { createDefaultProject } from '#lib/project/defaults';
   import NumberField from './NumberField.svelte';
 
@@ -11,7 +12,7 @@
     step,
     onform,
   }: {
-    path: any;
+    path: NumberPath;
     label: string;
     min?: number;
     max?: number;

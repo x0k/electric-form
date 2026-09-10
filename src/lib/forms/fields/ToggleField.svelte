@@ -1,6 +1,7 @@
 <script lang="ts">
   import { useField } from '@formisch/svelte';
-  import type { ProjectForm } from '#lib/forms/ctx';
+  import type { BooleanPath, ProjectForm } from '#lib/forms/ctx';
+  import { ProjectSchema } from '#lib/project/schemas';
 
   let {
     form,
@@ -9,12 +10,12 @@
     hint = '',
   }: {
     form: ProjectForm;
-    path: any;
+    path: BooleanPath;
     label: string;
     hint?: string;
   } = $props();
 
-  const field = useField(
+  const field = useField<typeof ProjectSchema, BooleanPath>(
     () => form,
     () => ({ path })
   );
@@ -32,8 +33,8 @@
       type="checkbox"
       class="toggle toggle-primary"
       class:toggle-error={!!error}
-      checked={!!(field.input as boolean | undefined)}
-      oninput={(e) => field.onInput(e.currentTarget.checked as never)}
+      checked={!!field.input}
+      oninput={(e) => field.onInput(e.currentTarget.checked)}
     />
     <span class="label-text">{label}</span>
   </label>

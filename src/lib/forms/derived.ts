@@ -47,9 +47,12 @@ export function deriveEthernetPoints(
   return tvOutlets + wifiAP + 1;
 }
 
+export type DerivedPath =
+  readonly ['general', 'doorsCount'] | readonly ['lighting', 'groups'];
+
 export interface DerivedTarget {
-  path: readonly (string | number)[];
-  value: number;
+  readonly path: DerivedPath;
+  readonly value: number;
 }
 
 /** Цели живой синхронизации: только структурные (двери, группы света).
@@ -69,75 +72,38 @@ export function deriveTargets(g: General): DerivedTarget[] {
  * осталось «автоматическим» и продолжало синхронизироваться.
  */
 export function applyDerivedFields(form: ProjectForm, view: Project): void {
-  for (const t of deriveTargets(view.general)) {
-    const path = t.path as any;
-    if (isEdited(form, { path })) continue;
-    const cur = getInput(form, { path }) as number | undefined;
-    if (cur !== t.value) {
-      setInput(form, { path, input: t.value as never });
-      reset(form, { path, keepInput: true });
-    }
+  for (const t of deriveTargets(view.general)) syncDerivedTarget(form, t);
+}
+
+/**
+ * Синхронизация одной цели. Ветвление по первому сегменту сужает юнион
+ * путей до конкретного литерала: методы formisch не принимают юнион
+ * (условный тип в config схлопывается до одного члена и остальные
+ * перестают проверяться), поэтому общий вызов для юниона невозможен.
+ */
+function syncDerivedTarget(form: ProjectForm, t: DerivedTarget): void {
+  if (t.path[0] === 'general') {
+    if (isEdited(form, { path: t.path })) return;
+    if (getInput(form, { path: t.path }) === t.value) return;
+    setInput(form, { path: t.path, input: t.value });
+    reset(form, { path: t.path, keepInput: true });
+  } else {
+    if (isEdited(form, { path: t.path })) return;
+    if (getInput(form, { path: t.path }) === t.value) return;
+    setInput(form, { path: t.path, input: t.value });
+    reset(form, { path: t.path, keepInput: true });
   }
 }
 
 export type ProcurementSection = 'lighting' | 'sensors';
-
-interface ProcurementSuggestion {
-  path: readonly [string, string];
-  value: number;
-}
-
-/** Кандидаты кнопки «Заполнить»: формулы для пустых полей раздела. */
-export function suggestProcurement(p: Project): ProcurementSuggestion[] {
-  return [
-    {
-      path: ['lighting', 'passThroughQty'],
-      value: suggestPassThroughQty(p),
-    },
-    {
-      path: ['lighting', 'dimmerQty'],
-      value: suggestDimmerQty(p),
-    },
-    {
-      path: ['lighting', 'ledKitchenQty'],
-      value: suggestLedKitchenQty(),
-    },
-    {
-      path: ['lighting', 'ledMirrorQty'],
-      value: suggestLedMirrorQty(p),
-    },
-    {
-      path: ['lighting', 'ledDecorQty'],
-      value: suggestLedDecorQty(),
-    },
-    {
-      path: ['sensors', 'leakQty'],
-      value: suggestLeakQty(p),
-    },
-    {
-      path: ['sensors', 'valveQty'],
-      value: suggestValveQty(),
-    },
-    {
-      path: ['sensors', 'smokeQty'],
-      value: suggestSmokeQty(p),
-    },
-    {
-      path: ['sensors', 'motionQty'],
-      value: suggestMotionQty(p),
-    },
-    {
-      path: ['sensors', 'curtainQty'],
-      value: suggestCurtainQty(p),
-    },
-  ];
-}
 
 /**
  * Кнопка «Пересчитать количества»: проставляет формулы во все поля
  * раздела. Все поля обязательные, пустых не бывает — поэтому это именно
  * пересчёт, а не заполнение пробелов. Введённое остаётся edited —
  * это явные данные, а не автоматика (reset здесь намеренно нет).
+ * Вызовы выписаны явно: методы formisch принимают только конкретный
+ * путь, юнион путей в цикле не проверяется (см. syncDerivedTarget).
  * @returns число полей раздела.
  */
 export function fillProcurementBlanks(
@@ -145,14 +111,44 @@ export function fillProcurementBlanks(
   view: Project,
   section: ProcurementSection
 ): number {
-  let filled = 0;
-  for (const s of suggestProcurement(view)) {
-    if (s.path[0] !== section) continue;
-    const path = s.path as any;
-    setInput(form, { path, input: s.value as never });
-    filled += 1;
+  if (section === 'lighting') {
+    setInput(form, {
+      path: ['lighting', 'passThroughQty'],
+      input: suggestPassThroughQty(view),
+    });
+    setInput(form, {
+      path: ['lighting', 'dimmerQty'],
+      input: suggestDimmerQty(view),
+    });
+    setInput(form, {
+      path: ['lighting', 'ledKitchenQty'],
+      input: suggestLedKitchenQty(),
+    });
+    setInput(form, {
+      path: ['lighting', 'ledMirrorQty'],
+      input: suggestLedMirrorQty(view),
+    });
+    setInput(form, {
+      path: ['lighting', 'ledDecorQty'],
+      input: suggestLedDecorQty(),
+    });
+    return 5;
   }
-  return filled;
+  setInput(form, { path: ['sensors', 'leakQty'], input: suggestLeakQty(view) });
+  setInput(form, { path: ['sensors', 'valveQty'], input: suggestValveQty() });
+  setInput(form, {
+    path: ['sensors', 'smokeQty'],
+    input: suggestSmokeQty(view),
+  });
+  setInput(form, {
+    path: ['sensors', 'motionQty'],
+    input: suggestMotionQty(view),
+  });
+  setInput(form, {
+    path: ['sensors', 'curtainQty'],
+    input: suggestCurtainQty(view),
+  });
+  return 5;
 }
 
 /**
@@ -167,16 +163,11 @@ export function fillLowVoltageDefaults(
 ): number {
   const tv = deriveTvOutlets(view.general);
   const wifi = deriveWifiAP(view.general);
-  const targets = [
-    { path: ['lowVoltage', 'tvOutlets'], value: tv },
-    { path: ['lowVoltage', 'wifiAP'], value: wifi },
-    {
-      path: ['lowVoltage', 'ethernetPoints'],
-      value: deriveEthernetPoints(tv, wifi),
-    },
-  ] as const;
-  for (const t of targets) {
-    setInput(form, { path: t.path as any, input: t.value as never });
-  }
-  return targets.length;
+  setInput(form, { path: ['lowVoltage', 'tvOutlets'], input: tv });
+  setInput(form, { path: ['lowVoltage', 'wifiAP'], input: wifi });
+  setInput(form, {
+    path: ['lowVoltage', 'ethernetPoints'],
+    input: deriveEthernetPoints(tv, wifi),
+  });
+  return 3;
 }

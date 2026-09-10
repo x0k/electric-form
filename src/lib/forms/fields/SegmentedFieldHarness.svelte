@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createProjectForm, type ProjectForm } from '#lib/forms/ctx';
+  import type { StringPath } from '#lib/forms/ctx';
   import { createDefaultProject } from '#lib/project/defaults';
   import SegmentedField from './SegmentedField.svelte';
 
@@ -9,7 +10,7 @@
     options,
     onform,
   }: {
-    path: any;
+    path: StringPath;
     label: string;
     options: readonly { value: string; label: string; hint?: string }[];
     onform: (form: ProjectForm) => void;

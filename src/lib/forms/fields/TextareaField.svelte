@@ -1,6 +1,7 @@
 <script lang="ts">
   import { useField } from '@formisch/svelte';
-  import type { ProjectForm } from '#lib/forms/ctx';
+  import type { ProjectForm, StringPath } from '#lib/forms/ctx';
+  import { ProjectSchema } from '#lib/project/schemas';
   import FieldShell from './FieldShell.svelte';
 
   let {
@@ -11,13 +12,13 @@
     rows = 2,
   }: {
     form: ProjectForm;
-    path: any;
+    path: StringPath;
     label: string;
     hint?: string;
     rows?: number;
   } = $props();
 
-  const field = useField(
+  const field = useField<typeof ProjectSchema, StringPath>(
     () => form,
     () => ({ path })
   );
@@ -34,5 +35,5 @@
     class="textarea textarea-bordered w-full"
     class:textarea-error={!!error}
     {rows}
-    value={(field.input as string | undefined) ?? ''}></textarea>
+    value={field.input ?? ''}></textarea>
 </FieldShell>

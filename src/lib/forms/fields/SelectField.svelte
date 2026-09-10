@@ -1,6 +1,7 @@
 <script lang="ts">
   import { useField } from '@formisch/svelte';
-  import type { ProjectForm } from '#lib/forms/ctx';
+  import type { ProjectForm, StringPath } from '#lib/forms/ctx';
+  import { ProjectSchema } from '#lib/project/schemas';
   import FieldShell from './FieldShell.svelte';
 
   let {
@@ -11,13 +12,13 @@
     hint = '',
   }: {
     form: ProjectForm;
-    path: any;
+    path: StringPath;
     label: string;
     options: readonly { value: string; label: string }[];
     hint?: string;
   } = $props();
 
-  const field = useField(
+  const field = useField<typeof ProjectSchema, StringPath>(
     () => form,
     () => ({ path })
   );
@@ -33,7 +34,7 @@
     {...field.props}
     class="select select-bordered w-full"
     class:select-error={!!error}
-    value={(field.input as string | undefined) ?? ''}
+    value={field.input ?? ''}
   >
     {#each options as o (o.value)}
       <option value={o.value}>{o.label}</option>
