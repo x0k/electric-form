@@ -8,7 +8,8 @@ describe('engine v1', () => {
   it('пустой дефолт даёт положительный итог и разбивку', () => {
     const p = createDefaultProject('test');
     const r = calculate(p, SEED_CATALOG);
-    expect(r.totalRub).toBeGreaterThan(50_000);
+    // Дефолт без розеток (0 = не надо): щит, свет и монтаж всё равно считают.
+    expect(r.totalRub).toBeGreaterThan(30_000);
     expect(r.lines.length).toBeGreaterThan(10);
     expect(r.categoryTotals.cable).toBeGreaterThan(0);
     expect(r.categoryTotals.panel).toBeGreaterThan(0);

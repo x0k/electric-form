@@ -62,7 +62,7 @@ export function nowIso(): string {
 
 export function createDefaultProject(name = 'Новая квартира'): Project {
   const ts = nowIso();
-  // Производные считаем сразу теми же формулами, что и живая синхронизация,
+  // Стартовые количества считаем теми же формулами, что кнопки типовых,
   // чтобы новый проект открывался с осмысленными, а не нулевыми значениями.
   const generalBase = {
     areaM2: 60,

@@ -1,5 +1,6 @@
-import { getInput, isEdited, reset, setInput } from '@formisch/svelte';
+import { setInput } from '@formisch/svelte';
 import {
+  estimateSocketsAuto,
   suggestCurtainQty,
   suggestDimmerQty,
   suggestLeakQty,
@@ -14,10 +15,8 @@ import {
 import type { ProjectForm } from '#lib/forms/ctx';
 import type { General, Project } from '#lib/project/types';
 
-/** Источники производных: всё, от чего зависят формулы ниже. */
-export function deriveKey(g: General): string {
-  return JSON.stringify([g.rooms, g.kitchenPresent, g.bathrooms, g.areaM2]);
-}
+/** Типовые значения для кнопок «Заполнить/Пересчитать» — чистые формулы,
+ * сами никуда не подставляются. Ввод остаётся явным. */
 
 /** Групп освещения: комнаты + кухня + коридор. */
 export function deriveLightingGroups(g: General): number {
@@ -27,6 +26,11 @@ export function deriveLightingGroups(g: General): number {
 /** Дверей: межкомнатные + санузлы + входная. */
 export function deriveDoorsCount(g: General): number {
   return g.rooms + g.bathrooms + 1;
+}
+
+/** Розеток 220В: типовые по комнатам/кухне/санузлам. 0 в поле — не надо. */
+export function deriveSocketsEstimate(g: General): number {
+  return estimateSocketsAuto(g);
 }
 
 /** ТВ-розеток: по одной на комнату, минимум одна. */
@@ -47,54 +51,6 @@ export function deriveEthernetPoints(
   return tvOutlets + wifiAP + 1;
 }
 
-export type DerivedPath =
-  readonly ['general', 'doorsCount'] | readonly ['lighting', 'groups'];
-
-export interface DerivedTarget {
-  readonly path: DerivedPath;
-  readonly value: number;
-}
-
-/** Цели живой синхронизации: только структурные (двери, группы света).
- * Слаботочка больше не подставляется молча — только кнопкой «Заполнить
- * типовые», иначе дефолт клал бы деньги в смету без ведома пользователя. */
-export function deriveTargets(g: General): DerivedTarget[] {
-  return [
-    { path: ['general', 'doorsCount'], value: deriveDoorsCount(g) },
-    { path: ['lighting', 'groups'], value: deriveLightingGroups(g) },
-  ];
-}
-
-/**
- * Применяет производные значения к нетронутым полям.
- * Тронутые пользователем поля не перезаписывает. После программной
- * записи снимает edited через per-field reset с keepInput, чтобы поле
- * осталось «автоматическим» и продолжало синхронизироваться.
- */
-export function applyDerivedFields(form: ProjectForm, view: Project): void {
-  for (const t of deriveTargets(view.general)) syncDerivedTarget(form, t);
-}
-
-/**
- * Синхронизация одной цели. Ветвление по первому сегменту сужает юнион
- * путей до конкретного литерала: методы formisch не принимают юнион
- * (условный тип в config схлопывается до одного члена и остальные
- * перестают проверяться), поэтому общий вызов для юниона невозможен.
- */
-function syncDerivedTarget(form: ProjectForm, t: DerivedTarget): void {
-  if (t.path[0] === 'general') {
-    if (isEdited(form, { path: t.path })) return;
-    if (getInput(form, { path: t.path }) === t.value) return;
-    setInput(form, { path: t.path, input: t.value });
-    reset(form, { path: t.path, keepInput: true });
-  } else {
-    if (isEdited(form, { path: t.path })) return;
-    if (getInput(form, { path: t.path }) === t.value) return;
-    setInput(form, { path: t.path, input: t.value });
-    reset(form, { path: t.path, keepInput: true });
-  }
-}
-
 export type ProcurementSection = 'lighting' | 'sensors';
 
 /**
@@ -103,7 +59,7 @@ export type ProcurementSection = 'lighting' | 'sensors';
  * пересчёт, а не заполнение пробелов. Введённое остаётся edited —
  * это явные данные, а не автоматика (reset здесь намеренно нет).
  * Вызовы выписаны явно: методы formisch принимают только конкретный
- * путь, юнион путей в цикле не проверяется (см. syncDerivedTarget).
+ * путь, юнион путей в цикле не проверяется.
  * @returns число полей раздела.
  */
 export function fillProcurementBlanks(

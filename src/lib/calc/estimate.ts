@@ -1,16 +1,19 @@
-import type { Project } from '#lib/project/types';
+import type { General, Project } from '#lib/project/types';
 import { METHOD } from './method';
 
-/** Оценка количества розеток 220В. */
-export function estimateSockets(p: Project): number {
-  const manual = p.general.socketsEstimate;
-  if (manual > 0) return manual;
+/** Типовая оценка розеток 220В без учёта ручного ввода (чистая формула). */
+export function estimateSocketsAuto(g: General): number {
   return Math.round(
-    p.general.rooms * METHOD.socketsPerRoom +
-      (p.general.kitchenPresent ? METHOD.socketsKitchen : 0) +
-      p.general.bathrooms * METHOD.socketsPerBathroom +
+    g.rooms * METHOD.socketsPerRoom +
+      (g.kitchenPresent ? METHOD.socketsKitchen : 0) +
+      g.bathrooms * METHOD.socketsPerBathroom +
       METHOD.socketsBase
   );
+}
+
+/** Оценка количества розеток 220В: явное число, 0 = не надо. */
+export function estimateSockets(p: Project): number {
+  return p.general.socketsEstimate;
 }
 
 /**

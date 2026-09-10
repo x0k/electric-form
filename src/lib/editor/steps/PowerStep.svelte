@@ -1,6 +1,8 @@
 <script lang="ts">
   import { Field, setInput } from '@formisch/svelte';
   import type { ProjectForm } from '#lib/forms/ctx';
+  import { deriveSocketsEstimate } from '#lib/forms/derived';
+  import NumberField from '#lib/forms/fields/NumberField.svelte';
   import { CONSUMER_LABELS } from '#lib/project/defaults';
   import type { Project } from '#lib/project/types';
 
@@ -53,8 +55,30 @@
   }
 </script>
 
+<div class="mb-3">
+  <NumberField
+    {form}
+    path={['general', 'socketsEstimate']}
+    label="Розеток 220В, шт"
+    hint="Бытовые розетки по квартире; 0 — не надо"
+    min={0}
+    max={300}
+  />
+  <button
+    type="button"
+    class="btn btn-outline mt-2 w-full"
+    title="Проставит типовые для этой планировки как явный ввод"
+    onclick={() =>
+      setInput(form, {
+        path: ['general', 'socketsEstimate'] as const,
+        input: deriveSocketsEstimate(view.general),
+      })}
+  >
+    Подставить типовые ({deriveSocketsEstimate(view.general)} шт)
+  </button>
+</div>
 <p class="mb-2 text-sm opacity-70">
-  Количество каждого потребителя, 0 — значит нет. Включая технику санузла и
+  Количество каждого потребителя ниже, 0 — значит нет. Включая технику санузла и
   кондиционеры. Нужен резерв под будущий кондиционер — просто добавьте +1 к
   количеству.
 </p>

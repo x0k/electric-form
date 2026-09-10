@@ -3,7 +3,7 @@
  * Меняем методику здесь, не трогая UI и правила по отдельности.
  */
 export const METHOD = {
-  /** Типовые точки при noLayoutMode / socketsEstimate=0 */
+  /** Типовые розетки для кнопки «Подставить типовые» (0 в поле = не надо) */
   socketsPerRoom: 8,
   socketsKitchen: 6,
   socketsPerBathroom: 4,

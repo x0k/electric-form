@@ -1,6 +1,5 @@
 <script lang="ts">
   import type { ProjectForm } from '#lib/forms/ctx';
-  import { deriveDoorsCount } from '#lib/forms/derived';
   import NumberField from '#lib/forms/fields/NumberField.svelte';
   import SegmentedField from '#lib/forms/fields/SegmentedField.svelte';
   import SelectField from '#lib/forms/fields/SelectField.svelte';
@@ -9,7 +8,7 @@
   import ToggleField from '#lib/forms/fields/ToggleField.svelte';
   import type { Project } from '#lib/project/types';
 
-  let { form, view }: { form: ProjectForm; view: Project } = $props();
+  let { form }: { form: ProjectForm; view: Project } = $props();
 </script>
 
 <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -124,19 +123,9 @@
       {form}
       path={['general', 'doorsCount']}
       label="Дверей"
-      hint="Посчитали из комнат и санузлов"
+      hint="Межкомнатные + санузлы + входная"
       min={0}
       max={30}
-      auto
-      autoValue={deriveDoorsCount(view.general)}
-    />
-    <NumberField
-      {form}
-      path={['general', 'socketsEstimate']}
-      label="Точек"
-      hint="0 — посчитаем сами по площади"
-      min={0}
-      max={300}
     />
   </div>
 </details>

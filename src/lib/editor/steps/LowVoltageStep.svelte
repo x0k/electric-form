@@ -45,8 +45,6 @@
     hint="Розетки для компьютера, ТВ, принтера"
     min={0}
     max={40}
-    auto
-    autoValue={ethAuto}
   />
   <NumberField
     {form}
@@ -54,8 +52,6 @@
     label="ТВ-розеток"
     min={0}
     max={20}
-    auto
-    autoValue={tvAuto}
   />
   <NumberField
     {form}
@@ -64,8 +60,6 @@
     hint="Потолочные точки доступа"
     min={0}
     max={10}
-    auto
-    autoValue={wifiAuto}
   />
   <NumberField
     {form}

@@ -13,7 +13,7 @@ describe('дефолт проекта', () => {
     expect(parseProject(createDefaultProject()).ok).toBe(true);
   });
 
-  it('производные посчитаны теми же формулами, что живая синхронизация', () => {
+  it('стартовые количества посчитаны теми же формулами, что кнопки типовых', () => {
     const p = createDefaultProject();
     const g = p.general;
     expect(p.lighting.groups).toBe(deriveLightingGroups(g));
@@ -33,6 +33,8 @@ describe('дефолт проекта', () => {
   it('не содержит тихого присутствия вне производных', () => {
     const p = createDefaultProject();
     expect(p.lowVoltage.cameras).toBe(0);
+    // Бытовые розетки: явный 0 = не надо, типовые — кнопкой на этапе силовых.
+    expect(p.general.socketsEstimate).toBe(0);
     // Закупочные количества — явные нули, а не пустота.
     expect(p.lighting.passThroughQty).toBe(0);
     expect(p.lighting.dimmerQty).toBe(0);

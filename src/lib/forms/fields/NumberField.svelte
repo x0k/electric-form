@@ -12,8 +12,6 @@
     min,
     max,
     step = 1,
-    auto = false,
-    autoValue,
   }: {
     form: ProjectForm;
     path: NumberPath;
@@ -22,10 +20,6 @@
     min?: number;
     max?: number;
     step?: number;
-    /** Поле участвует в автовычислении из других ответов. */
-    auto?: boolean;
-    /** Текущее вычисленное значение — для бейджа «авто». */
-    autoValue?: number;
   } = $props();
 
   const field = useField<typeof ProjectSchema, NumberPath>(
@@ -44,15 +38,6 @@
     return typeof v === 'number' && !Number.isNaN(v) ? v : undefined;
   });
   const display = $derived(validNum());
-  // Бейдж «авто»: значение вычислено и пользователь его не правил.
-  // После ручной правки (isEdited) бейдж исчезает навсегда.
-  const showAuto = $derived(
-    auto &&
-      !field.isEdited &&
-      validNum() !== undefined &&
-      autoValue !== undefined &&
-      validNum() === autoValue
-  );
 
   function decimals(n: number): number {
     const s = String(n);
@@ -75,7 +60,7 @@
   }
 </script>
 
-<FieldShell {label} {error} {hint} badge={showAuto ? 'авто' : ''}>
+<FieldShell {label} {error} {hint}>
   <div class="flex gap-1.5">
     <button
       type="button"

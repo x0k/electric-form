@@ -53,7 +53,7 @@ export const GeneralSchema = v.object({
   noLayoutMode: v.boolean(),
   stage: StageSchema,
   doorsCount: int(0, 30),
-  /** Ручная оценка точек; 0 = автооценка. */
+  /** Ручная оценка точек; 0 = не надо. */
   socketsEstimate: int(0, 300),
   /** Кабель в гофре (штробы, перекрытия); выкл — прокладка без гофры. */
   corrugation: v.boolean(),

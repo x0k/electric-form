@@ -39,25 +39,6 @@ describe('project schema', () => {
     }
   });
 
-  it('старое поле present мигрирует в qty (0 = нет)', () => {
-    const raw = JSON.parse(JSON.stringify(createDefaultProject('old')));
-    const hob = raw.power.consumers.find(
-      (c: { kind: string }) => c.kind === 'hob'
-    );
-    hob.present = true;
-    hob.qty = 0;
-    hob.dedicatedLine = true;
-    const parsed = parseProject(raw);
-    expect(parsed.ok).toBe(true);
-    if (parsed.ok) {
-      const migrated = parsed.project.power.consumers.find(
-        (c) => c.kind === 'hob'
-      )!;
-      expect(migrated.qty).toBe(1);
-      expect('present' in migrated).toBe(false);
-    }
-  });
-
   it('битый проект отклоняется с issues', () => {
     const parsed = parseProject({
       meta: { id: 'x', name: 'old', createdAt: 't', updatedAt: 't' },

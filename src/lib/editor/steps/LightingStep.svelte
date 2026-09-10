@@ -1,9 +1,6 @@
 <script lang="ts">
   import type { ProjectForm } from '#lib/forms/ctx';
-  import {
-    deriveLightingGroups,
-    fillProcurementBlanks,
-  } from '#lib/forms/derived';
+  import { fillProcurementBlanks } from '#lib/forms/derived';
   import NumberField from '#lib/forms/fields/NumberField.svelte';
   import SegmentedField from '#lib/forms/fields/SegmentedField.svelte';
   import ToggleField from '#lib/forms/fields/ToggleField.svelte';
@@ -27,8 +24,6 @@
     hint="Комнаты + кухня + коридор; поправьте при нужде"
     min={0}
     max={40}
-    auto
-    autoValue={deriveLightingGroups(view.general)}
   />
   <NumberField
     {form}

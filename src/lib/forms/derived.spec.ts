@@ -3,7 +3,7 @@ import {
   deriveDoorsCount,
   deriveEthernetPoints,
   deriveLightingGroups,
-  deriveTargets,
+  deriveSocketsEstimate,
   deriveTvOutlets,
   deriveWifiAP,
 } from '#lib/forms/derived';
@@ -30,10 +30,11 @@ function general(over: Partial<General> = {}): General {
 }
 
 describe('derived', () => {
-  it('типовая двушка: группы, двери, ТВ, Wi-Fi, ethernet', () => {
+  it('типовая двушка: группы, двери, розетки, ТВ, Wi-Fi, ethernet', () => {
     const g = general();
     expect(deriveLightingGroups(g)).toBe(4); // 2 комнаты + кухня + коридор
     expect(deriveDoorsCount(g)).toBe(4); // 2 + 1 + входная
+    expect(deriveSocketsEstimate(g)).toBe(30); // 2×8 + 6 + 4 + 4
     expect(deriveTvOutlets(g)).toBe(2);
     expect(deriveWifiAP(g)).toBe(1); // 60 м²
     expect(deriveEthernetPoints(2, 1)).toBe(4); // ТВ + Wi-Fi + рабочее место
@@ -48,8 +49,9 @@ describe('derived', () => {
     expect(deriveWifiAP(big)).toBe(3);
   });
 
-  it('цели живой синхронизации — только структурные', () => {
-    const paths = deriveTargets(general()).map((t) => t.path.join('.'));
-    expect(paths).toEqual(['general.doorsCount', 'lighting.groups']);
+  it('типовые розетки считаются по комнатам/кухне/санузлам', () => {
+    expect(deriveSocketsEstimate(general())).toBe(30);
+    const studio = general({ rooms: 0, bathrooms: 0, kitchenPresent: false });
+    expect(deriveSocketsEstimate(studio)).toBe(4);
   });
 });

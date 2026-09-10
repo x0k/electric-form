@@ -2,6 +2,7 @@ export type * from './types';
 export { METHOD } from './method';
 export {
   estimateSockets,
+  estimateSocketsAuto,
   estimatePanelLines,
   estimateDedicatedLines,
   estimateConditionerQty,
