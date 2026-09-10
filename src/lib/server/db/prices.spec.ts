@@ -4,7 +4,14 @@ import { calculate } from '#lib/calc/engine';
 import { createDefaultProject } from '#lib/project/defaults';
 import { getCatalog } from './catalog';
 import { createMemoryDb } from './client';
-import { applyMarketMin, getLatestRun, getMarketMin } from './prices';
+import {
+  applyMarketMin,
+  finishPriceRun,
+  getLatestRun,
+  getMarketMin,
+  isPriceRunStale,
+  startPriceRun,
+} from './prices';
 import { priceOffers, priceRuns } from './schema';
 
 function offer(
@@ -135,5 +142,25 @@ describe('market min prices', () => {
     const run = await getLatestRun(db);
     expect(run?.status).toBe('partial');
     expect(run?.error).toBe('1/3 без офферов');
+  });
+
+  it('startPriceRun/finishPriceRun и stale по heartbeat', async () => {
+    const db = createMemoryDb();
+    const run = await startPriceRun(db);
+    expect(run.status).toBe('running');
+    expect(await getLatestRun(db)).toMatchObject({ id: run.id });
+    // Свежий heartbeat — не stale.
+    expect(isPriceRunStale((await getLatestRun(db))!)).toBe(false);
+    // Старый heartbeat — stale.
+    const stale = {
+      ...(await getLatestRun(db))!,
+      lastBeatAt: new Date(Date.now() - 60 * 60_000).toISOString(),
+    };
+    expect(isPriceRunStale(stale)).toBe(true);
+    await finishPriceRun(db, run.id, 'timeout', 'boom');
+    const done = await getLatestRun(db);
+    expect(done?.status).toBe('timeout');
+    expect(done?.finishedAt).not.toBeNull();
+    expect(isPriceRunStale(done!)).toBe(false);
   });
 });

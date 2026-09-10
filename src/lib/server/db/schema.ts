@@ -38,6 +38,15 @@ export const priceRuns = sqliteTable('price_runs', {
   error: text('error'),
   startedAt: text('started_at').notNull(),
   finishedAt: text('finished_at'),
+  /**
+   * Heartbeat прогресса: парсер обновляет doneCount/lastBeatAt после
+   * каждого материала. Прогон в running без свежего heartbeat считается
+   * зависшим (процесс умер — detached-дочка не переживает рестарт
+   * контейнера) и может быть перезапущен.
+   */
+  totalCount: integer('total_count'),
+  doneCount: integer('done_count'),
+  lastBeatAt: text('last_beat_at'),
 });
 
 /** Сырые офферы магазинов: все цены хранятся, смета берет min. */

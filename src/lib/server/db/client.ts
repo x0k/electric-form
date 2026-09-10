@@ -46,7 +46,7 @@ export function createMemoryDb(): Db {
     `CREATE TABLE projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, data TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
      CREATE TABLE catalog_materials (id TEXT PRIMARY KEY, category TEXT NOT NULL, name TEXT NOT NULL, unit TEXT NOT NULL, price_rub INTEGER NOT NULL, article TEXT, waste_pct INTEGER);
      CREATE TABLE catalog_overrides (material_id TEXT PRIMARY KEY, price_rub INTEGER, waste_pct INTEGER);
-     CREATE TABLE price_runs (id INTEGER PRIMARY KEY AUTOINCREMENT, city TEXT NOT NULL, status TEXT NOT NULL, error TEXT, started_at TEXT NOT NULL, finished_at TEXT);
+      CREATE TABLE price_runs (id INTEGER PRIMARY KEY AUTOINCREMENT, city TEXT NOT NULL, status TEXT NOT NULL, error TEXT, started_at TEXT NOT NULL, finished_at TEXT, total_count INTEGER, done_count INTEGER, last_beat_at TEXT);
      CREATE TABLE price_offers (id INTEGER PRIMARY KEY AUTOINCREMENT, run_id INTEGER, material_id TEXT NOT NULL, shop TEXT NOT NULL, title TEXT NOT NULL, url TEXT NOT NULL, article TEXT, price_rub INTEGER NOT NULL, unit TEXT NOT NULL, in_stock INTEGER NOT NULL, city TEXT NOT NULL, observed_at TEXT NOT NULL);`
   );
   seedCatalogMaterials(db);

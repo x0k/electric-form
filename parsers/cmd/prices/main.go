@@ -2,7 +2,7 @@
 //
 //	prices scrape [--city syktyvkar] [--db PATH] [--mapping PATH]
 //	        [--only cable-vvg-3x2.5,breaker-16] [--shops orion,kristall]
-//	        [--dry-run] [--delay 800ms]
+//	        [--dry-run] [--delay 800ms] [--run-id 42]
 //	prices daemon [--interval 24h] [остальные флаги scrape]
 //
 // scrape пишет офферы в price_offers и печатает JSON-итог в stdout
@@ -82,6 +82,7 @@ type options struct {
 	shops   string
 	dryRun  bool
 	delay   time.Duration
+	runID   int64
 }
 
 func flagsFor(fs *flag.FlagSet) *options {
@@ -93,6 +94,7 @@ func flagsFor(fs *flag.FlagSet) *options {
 	fs.StringVar(&o.shops, "shops", "orion,kristall,mkrep", "магазины через запятую")
 	fs.BoolVar(&o.dryRun, "dry-run", false, "не писать в БД, только stdout")
 	fs.DurationVar(&o.delay, "delay", 800*time.Millisecond, "пауза между HTTP-запросами")
+	fs.Int64Var(&o.runID, "run-id", 0, "занять строку price_runs, созданную приложением")
 	return o
 }
 
@@ -148,22 +150,6 @@ func scrape(o options) int {
 	}
 	only := splitSet(o.only)
 
-	var db *sql.DB
-	var runID int64
-	if !o.dryRun {
-		db, err = store.Open(o.db)
-		if err != nil {
-			fatal(fmt.Sprintf("db: %v", err))
-		}
-		defer db.Close()
-		runID, err = store.StartRun(db, o.city)
-		if err != nil {
-			fatal(fmt.Sprintf("start run: %v", err))
-		}
-	}
-
-	sum := summary{RunID: runID, City: o.city, Status: "ok"}
-	failCount := 0
 	// Детерминированный порядок материалов для стабильных логов.
 	matIDs := make([]string, 0, len(mp.Materials))
 	for matID := range mp.Materials {
@@ -173,7 +159,39 @@ func scrape(o options) int {
 		matIDs = append(matIDs, matID)
 	}
 	sort.Strings(matIDs)
-	for _, matID := range matIDs {
+
+	shopNames := make([]string, 0, len(active))
+	for _, s := range active {
+		shopNames = append(shopNames, s.Name())
+	}
+
+	var db *sql.DB
+	var runID int64
+	if !o.dryRun {
+		db, err = store.Open(o.db)
+		if err != nil {
+			fatal(fmt.Sprintf("db: %v", err))
+		}
+		defer db.Close()
+		if o.runID > 0 {
+			// Строка создана приложением: занимаем её (нет строки — фатал,
+			// чтобы не плодить сиротские running без владельца).
+			runID = o.runID
+			if err := store.ClaimRun(db, runID, len(matIDs)); err != nil {
+				fatal(fmt.Sprintf("claim run %d: %v", runID, err))
+			}
+		} else {
+			runID, err = store.StartRun(db, o.city)
+			if err != nil {
+				fatal(fmt.Sprintf("start run: %v", err))
+			}
+		}
+	}
+
+	log.Printf("prices run=%d city=%s start materials=%d shops=%v", runID, o.city, len(matIDs), shopNames)
+	sum := summary{RunID: runID, City: o.city, Status: "ok"}
+	failCount := 0
+	for i, matID := range matIDs {
 		entry := mp.Materials[matID]
 		res := materialResult{MaterialID: matID, Query: entry.Query}
 		// Магазины опрашиваются конкурентно: падение одного не отменяет
@@ -221,6 +239,15 @@ func scrape(o options) int {
 			log.Printf("prices run=%d material=%s no offers errors=%v", runID, matID, res.Errors)
 		}
 		sum.Materials = append(sum.Materials, res)
+		if !o.dryRun {
+			// Heartbeat прогресса: UI видит done/total через live-статус,
+			// зависший процесс — по отсутствию heartbeat.
+			if err := store.Beat(db, runID, i+1); err != nil {
+				log.Printf("prices run=%d heartbeat error=%v", runID, err)
+			} else {
+				log.Printf("prices run=%d progress %d/%d material=%s offers=%d", runID, i+1, len(matIDs), matID, len(found))
+			}
+		}
 	}
 	if failCount > 0 && len(sum.Materials) > 0 && failCount == len(sum.Materials) {
 		sum.Status = "error"
@@ -237,6 +264,7 @@ func scrape(o options) int {
 			return 1
 		}
 	}
+	log.Printf("prices run=%d city=%s finish status=%s materials=%d failed=%d", runID, o.city, sum.Status, len(sum.Materials), failCount)
 	out, _ := json.MarshalIndent(sum, "", "  ")
 	fmt.Println(string(out))
 	if sum.Status == "error" {

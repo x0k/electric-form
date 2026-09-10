@@ -13,8 +13,11 @@ import {
 } from '#lib/server/db/catalog';
 import {
   DEFAULT_CITY,
+  finishPriceRun,
   getLatestOffers,
   getLatestRun,
+  isPriceRunStale,
+  startPriceRun,
   type MarketOffer,
   type PriceRun,
 } from '#lib/server/db/prices';
@@ -57,18 +60,42 @@ function resolvePricesBin(): string | null {
   return null;
 }
 
-function runScrapeDetached(bin: string, dbPath: string): void {
+function runScrapeDetached(bin: string, dbPath: string, runId: number): void {
   // Асинхронный запуск: процесс отсоединяется, stdout/stderr наследуются —
-  // логи парсера подхватывает docker logs. Результат (офферы + статус)
-  // пишется парсером в БД инкрементально, статус отслеживается через
-  // getRefreshStatus (query.live).
-  const child = spawn(
-    bin,
-    ['scrape', '--city', DEFAULT_CITY, '--db', dbPath, '--delay', '600ms'],
-    { detached: true, stdio: ['ignore', 'inherit', 'inherit'] }
-  );
+  // логи парсера подхватывает docker logs. Результат (офферы + статус +
+  // heartbeat) пишется парсером в БД инкрементально, статус отслеживается
+  // через getRefreshStatus (query.live). Строка прогона создана заранее
+  // (startPriceRun), парсер занимает её по --run-id.
+  let child;
+  try {
+    child = spawn(
+      bin,
+      [
+        'scrape',
+        '--city',
+        DEFAULT_CITY,
+        '--db',
+        dbPath,
+        '--delay',
+        '600ms',
+        '--run-id',
+        String(runId),
+      ],
+      { detached: true, stdio: ['ignore', 'inherit', 'inherit'] }
+    );
+  } catch (err) {
+    throw error(
+      500,
+      `Не удалось запустить парсер: ${err instanceof Error ? err.message : err}`
+    );
+  }
   child.on('error', (err) => {
-    console.error(`[prices] не удалось запустить парсер: ${err.message}`);
+    console.error(
+      `[prices] run ${runId}: не удалось запустить парсер: ${err.message}`
+    );
+    void finishPriceRun(getDb(), runId, 'error', `spawn: ${err.message}`).catch(
+      (e) => console.error(`[prices] run ${runId}: finish failed`, e)
+    );
   });
   child.unref();
 }
@@ -76,16 +103,18 @@ function runScrapeDetached(bin: string, dbPath: string): void {
 /** Live-статус обновления цен: стримит последний прогон, пока открыт каталог. */
 export const getRefreshStatus = query.live(async function* (): AsyncGenerator<{
   run: PriceRun | null;
+  stale: boolean;
 }> {
   let last = '';
   for (;;) {
     const run = await getLatestRun(getDb(), DEFAULT_CITY);
+    const stale = run ? isPriceRunStale(run) : false;
     const key = run
-      ? `${run.id}:${run.status}:${run.finishedAt ?? ''}:${run.error ?? ''}`
+      ? `${run.id}:${run.status}:${run.finishedAt ?? ''}:${run.error ?? ''}:${run.doneCount ?? ''}:${run.lastBeatAt ?? ''}:${stale}`
       : 'none';
     if (key !== last) {
       last = key;
-      yield { run };
+      yield { run, stale };
     }
     await new Promise((r) => setTimeout(r, 2000));
   }
@@ -95,9 +124,11 @@ export const getRefreshStatus = query.live(async function* (): AsyncGenerator<{
  * Ручной запуск парсера со страницы каталога. Возвращается сразу после
  * старта фонового процесса; прогресс виден через getRefreshStatus,
  * итог (офферы) — через getPriceData после завершения прогона.
+ * Зависший прогон (нет heartbeat дольше PRICE_RUN_STALE_MS) закрывается
+ * как timeout и не блокирует новый запуск.
  */
 export const refreshPrices = command(
-  async (): Promise<{ started: boolean }> => {
+  async (): Promise<{ started: boolean; runId: number }> => {
     const bin = resolvePricesBin();
     if (!bin) {
       throw error(
@@ -105,12 +136,22 @@ export const refreshPrices = command(
         'Бинарь парсера не найден. Соберите: cd parsers && go build -o ../parsers-bin ./cmd/prices'
       );
     }
-    const running = await getLatestRun(getDb(), DEFAULT_CITY);
-    if (running?.status === 'running') {
-      throw error(409, 'Обновление цен уже запущено, дождитесь завершения');
+    const db = getDb();
+    const prev = await getLatestRun(db, DEFAULT_CITY);
+    if (prev?.status === 'running') {
+      if (!isPriceRunStale(prev)) {
+        throw error(409, 'Обновление цен уже запущено, дождитесь завершения');
+      }
+      await finishPriceRun(
+        db,
+        prev.id,
+        'timeout',
+        'Нет heartbeat дольше 30 минут — процесс, видимо, умер (рестарт контейнера убивает фоновый парсер).'
+      );
     }
-    runScrapeDetached(bin, resolveDbPath());
-    return { started: true };
+    const run = await startPriceRun(db, DEFAULT_CITY);
+    runScrapeDetached(bin, resolveDbPath(), run.id);
+    return { started: true, runId: run.id };
   }
 );
 

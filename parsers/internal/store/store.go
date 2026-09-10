@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"electric-form/parsers/internal/shops"
@@ -44,9 +45,8 @@ func Open(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-// ensureSchema создает таблицы парсера, если их нет.
-// DDL повторяет drizzle-миграцию 0002 (IF NOT EXISTS — безопасно
-// вызывать при каждом запуске, в т.ч. до старта Node-приложения).
+// ensureSchema создает таблицы парсера, если их нет, и дотягивает
+// колонки heartbeat до старых БД (ALTER ... ADD игнорирует "duplicate").
 func ensureSchema(db *sql.DB) error {
 	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS price_runs (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -72,7 +72,20 @@ func ensureSchema(db *sql.DB) error {
 	);
 	CREATE INDEX IF NOT EXISTS idx_price_offers_material
 		ON price_offers (material_id, city, observed_at);`)
-	return err
+	if err != nil {
+		return err
+	}
+	for _, col := range []string{
+		"ALTER TABLE price_runs ADD COLUMN total_count INTEGER",
+		"ALTER TABLE price_runs ADD COLUMN done_count INTEGER",
+		"ALTER TABLE price_runs ADD COLUMN last_beat_at TEXT",
+	} {
+		if _, err := db.Exec(col); err != nil &&
+			!strings.Contains(err.Error(), "duplicate column") {
+			return err
+		}
+	}
+	return nil
 }
 
 // ResolvePath повторяет логику resolveDbPath() из TS-клиента.
@@ -106,6 +119,37 @@ func StartRun(db *sql.DB, city string) (int64, error) {
 		return 0, err
 	}
 	return res.LastInsertId()
+}
+
+// ClaimRun занимает строку прогона, созданную приложением (--run-id):
+// фиксирует план (total) и heartbeat старта. Нет строки — ошибка.
+func ClaimRun(db *sql.DB, id int64, total int) error {
+	now := time.Now().UTC().Format(time.RFC3339)
+	res, err := db.Exec(
+		`UPDATE price_runs SET status = 'running', total_count = ?, done_count = 0, last_beat_at = ? WHERE id = ?`,
+		total, now, id,
+	)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+// Beat обновляет прогресс и heartbeat после каждого материала.
+func Beat(db *sql.DB, id int64, done int) error {
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err := db.Exec(
+		`UPDATE price_runs SET done_count = ?, last_beat_at = ? WHERE id = ?`,
+		done, now, id,
+	)
+	return err
 }
 
 // FinishRun помечает прогон завершенным.

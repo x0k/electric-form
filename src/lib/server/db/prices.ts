@@ -36,6 +36,26 @@ export interface PriceRun {
   error: string | null;
   startedAt: string;
   finishedAt: string | null;
+  totalCount: number | null;
+  doneCount: number | null;
+  lastBeatAt: string | null;
+}
+
+/**
+ * Прогон в running без heartbeat дольше этого считается зависшим:
+ * detached-процесс парсера не переживает рестарт контейнера и может
+ * умереть молча (фатал после StartRun тоже оставляет running).
+ * Нормальный прогон ~10 минут, запас кратный.
+ */
+export const PRICE_RUN_STALE_MS = 30 * 60_000;
+
+export function isPriceRunStale(
+  run: PriceRun,
+  now: number = Date.now()
+): boolean {
+  if (run.status !== 'running') return false;
+  const beat = run.lastBeatAt ?? run.startedAt;
+  return now - new Date(beat).getTime() > PRICE_RUN_STALE_MS;
 }
 
 function freshCutoff(): string {
@@ -112,7 +132,47 @@ export async function getLatestRun(
     error: r.error,
     startedAt: r.startedAt,
     finishedAt: r.finishedAt,
+    totalCount: r.totalCount,
+    doneCount: r.doneCount,
+    lastBeatAt: r.lastBeatAt,
   };
+}
+
+/** Создать строку прогона (владелец — приложение, парсер занимает её по --run-id). */
+export async function startPriceRun(
+  db: Db,
+  city: string = DEFAULT_CITY
+): Promise<PriceRun> {
+  const now = new Date().toISOString();
+  const rows = await db
+    .insert(priceRuns)
+    .values({ city, status: 'running', startedAt: now, lastBeatAt: now })
+    .returning();
+  const r = rows[0];
+  return {
+    id: r.id,
+    city: r.city,
+    status: r.status,
+    error: r.error,
+    startedAt: r.startedAt,
+    finishedAt: r.finishedAt,
+    totalCount: r.totalCount,
+    doneCount: r.doneCount,
+    lastBeatAt: r.lastBeatAt,
+  };
+}
+
+/** Завершить прогон (успех/ошибка/таймаут зависшего). */
+export async function finishPriceRun(
+  db: Db,
+  id: number,
+  status: string,
+  errText: string | null
+): Promise<void> {
+  await db
+    .update(priceRuns)
+    .set({ status, error: errText, finishedAt: new Date().toISOString() })
+    .where(eq(priceRuns.id, id));
 }
 
 /** Офферы последнего завершенного прогона по городу (для UI каталога). */
@@ -135,6 +195,9 @@ export async function getLatestOffers(
     error: r.error,
     startedAt: r.startedAt,
     finishedAt: r.finishedAt,
+    totalCount: r.totalCount,
+    doneCount: r.doneCount,
+    lastBeatAt: r.lastBeatAt,
   };
   if (r.status === 'running') return { run, offers: [] };
   const rows = await db
