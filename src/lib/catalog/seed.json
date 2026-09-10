@@ -1,0 +1,374 @@
+[
+  {
+    "id": "cable-vvg-3x2.5",
+    "category": "cable",
+    "name": "ВВГнг-LS 3×2.5",
+    "unit": "m",
+    "priceRub": 120
+  },
+  {
+    "id": "cable-vvg-3x1.5",
+    "category": "cable",
+    "name": "ВВГнг-LS 3×1.5",
+    "unit": "m",
+    "priceRub": 75
+  },
+  {
+    "id": "cable-vvg-5x6",
+    "category": "cable",
+    "name": "ВВГнг-LS 5×6 (ввод)",
+    "unit": "m",
+    "priceRub": 650
+  },
+  {
+    "id": "cable-utp",
+    "category": "lowvoltage",
+    "name": "UTP cat5e",
+    "unit": "m",
+    "priceRub": 45
+  },
+  {
+    "id": "cable-tv",
+    "category": "lowvoltage",
+    "name": "Коаксиал SAT-703",
+    "unit": "m",
+    "priceRub": 55
+  },
+  {
+    "id": "corr-20",
+    "category": "mounting",
+    "name": "Гофра ПВХ d20",
+    "unit": "m",
+    "priceRub": 22
+  },
+  {
+    "id": "corr-25",
+    "category": "mounting",
+    "name": "Гофра ПВХ d25",
+    "unit": "m",
+    "priceRub": 30
+  },
+  {
+    "id": "box-socket",
+    "category": "mounting",
+    "name": "Подрозетник блочный",
+    "unit": "pcs",
+    "priceRub": 35
+  },
+  {
+    "id": "box-junction",
+    "category": "mounting",
+    "name": "Коробка распаячная",
+    "unit": "pcs",
+    "priceRub": 90
+  },
+  {
+    "id": "fix-clips",
+    "category": "mounting",
+    "name": "Крепёж (клипсы/дюбели, компл.)",
+    "unit": "set",
+    "priceRub": 2500,
+    "wastePct": 15
+  },
+  {
+    "id": "terminals",
+    "category": "mounting",
+    "name": "Клеммы (набор)",
+    "unit": "set",
+    "priceRub": 1800
+  },
+  {
+    "id": "socket-220",
+    "category": "sockets",
+    "name": "Розетка 220В",
+    "unit": "pcs",
+    "priceRub": 650
+  },
+  {
+    "id": "socket-tv",
+    "category": "lowvoltage",
+    "name": "Розетка TV",
+    "unit": "pcs",
+    "priceRub": 800
+  },
+  {
+    "id": "socket-rj45",
+    "category": "lowvoltage",
+    "name": "Розетка RJ45",
+    "unit": "pcs",
+    "priceRub": 750
+  },
+  {
+    "id": "switch-1",
+    "category": "sockets",
+    "name": "Выключатель 1-кл",
+    "unit": "pcs",
+    "priceRub": 600
+  },
+  {
+    "id": "switch-pass",
+    "category": "sockets",
+    "name": "Выключатель проходной",
+    "unit": "pcs",
+    "priceRub": 750
+  },
+  {
+    "id": "switch-dim",
+    "category": "lighting",
+    "name": "Диммер",
+    "unit": "pcs",
+    "priceRub": 2800
+  },
+  {
+    "id": "led-kitchen",
+    "category": "lighting",
+    "name": "Подсветка кухни (компл.)",
+    "unit": "set",
+    "priceRub": 6500
+  },
+  {
+    "id": "led-mirror",
+    "category": "lighting",
+    "name": "Подсветка зеркала (компл.)",
+    "unit": "set",
+    "priceRub": 3500
+  },
+  {
+    "id": "led-decor",
+    "category": "lighting",
+    "name": "Декоративная подсветка (компл.)",
+    "unit": "set",
+    "priceRub": 4500
+  },
+  {
+    "id": "led-driver-push",
+    "category": "lighting",
+    "name": "Драйвер ленты с push-dim",
+    "unit": "pcs",
+    "priceRub": 5500
+  },
+  {
+    "id": "push-button",
+    "category": "lighting",
+    "name": "Кнопка push для диммирования",
+    "unit": "pcs",
+    "priceRub": 900
+  },
+  {
+    "id": "led-softstart",
+    "category": "lighting",
+    "name": "Модуль плавного пуска ленты",
+    "unit": "pcs",
+    "priceRub": 2500
+  },
+  {
+    "id": "led-box",
+    "category": "lighting",
+    "name": "Щиток под БП ленты",
+    "unit": "pcs",
+    "priceRub": 4500
+  },
+  {
+    "id": "breaker-16",
+    "category": "panel",
+    "name": "Автомат 16А",
+    "unit": "pcs",
+    "priceRub": 550
+  },
+  {
+    "id": "breaker-25",
+    "category": "panel",
+    "name": "Автомат 25А",
+    "unit": "pcs",
+    "priceRub": 600
+  },
+  {
+    "id": "breaker-40",
+    "category": "panel",
+    "name": "Вводной автомат 40А",
+    "unit": "pcs",
+    "priceRub": 900
+  },
+  {
+    "id": "rcd-40-30",
+    "category": "panel",
+    "name": "УЗО 40А 30мА",
+    "unit": "pcs",
+    "priceRub": 3200
+  },
+  {
+    "id": "rcd-fire",
+    "category": "panel",
+    "name": "УЗО противопожарное 300мА",
+    "unit": "pcs",
+    "priceRub": 3800
+  },
+  {
+    "id": "rcbo-16",
+    "category": "panel",
+    "name": "Дифавтомат 16А 30мА",
+    "unit": "pcs",
+    "priceRub": 3600
+  },
+  {
+    "id": "voltage-relay",
+    "category": "panel",
+    "name": "Реле напряжения",
+    "unit": "pcs",
+    "priceRub": 4500
+  },
+  {
+    "id": "spd",
+    "category": "panel",
+    "name": "УЗИП",
+    "unit": "pcs",
+    "priceRub": 6500
+  },
+  {
+    "id": "contactor-40",
+    "category": "panel",
+    "name": "Контактор 40А",
+    "unit": "pcs",
+    "priceRub": 3200
+  },
+  {
+    "id": "wattmeter",
+    "category": "panel",
+    "name": "Ваттметр модульный",
+    "unit": "pcs",
+    "priceRub": 5500
+  },
+  {
+    "id": "volt-ind",
+    "category": "panel",
+    "name": "Индикация напряжения",
+    "unit": "pcs",
+    "priceRub": 1200
+  },
+  {
+    "id": "box-24",
+    "category": "panel",
+    "name": "Щит встраиваемый 24 мод.",
+    "unit": "pcs",
+    "priceRub": 7500
+  },
+  {
+    "id": "box-36",
+    "category": "panel",
+    "name": "Щит встраиваемый 36 мод.",
+    "unit": "pcs",
+    "priceRub": 9800
+  },
+  {
+    "id": "box-54",
+    "category": "panel",
+    "name": "Щит встраиваемый 54 мод.",
+    "unit": "pcs",
+    "priceRub": 13500
+  },
+  {
+    "id": "din-rail",
+    "category": "panel",
+    "name": "Кросс-модуль / шины (компл.)",
+    "unit": "set",
+    "priceRub": 2500
+  },
+  {
+    "id": "phase-relay",
+    "category": "panel",
+    "name": "Реле контроля фаз",
+    "unit": "pcs",
+    "priceRub": 5200
+  },
+  {
+    "id": "poe-switch",
+    "category": "lowvoltage",
+    "name": "PoE-коммутатор",
+    "unit": "pcs",
+    "priceRub": 8500
+  },
+  {
+    "id": "intercom-kit",
+    "category": "lowvoltage",
+    "name": "Домофон (комплект)",
+    "unit": "set",
+    "priceRub": 18000
+  },
+  {
+    "id": "leak-sensor",
+    "category": "automation",
+    "name": "Датчик протечки",
+    "unit": "pcs",
+    "priceRub": 1500
+  },
+  {
+    "id": "leak-valve",
+    "category": "automation",
+    "name": "Электромагнитный клапан",
+    "unit": "pcs",
+    "priceRub": 5500
+  },
+  {
+    "id": "smoke-sensor",
+    "category": "automation",
+    "name": "Дымовой датчик",
+    "unit": "pcs",
+    "priceRub": 1200
+  },
+  {
+    "id": "motion-sensor",
+    "category": "automation",
+    "name": "Датчик движения",
+    "unit": "pcs",
+    "priceRub": 1800
+  },
+  {
+    "id": "curtain-motor",
+    "category": "automation",
+    "name": "Электрокарниз (компл.)",
+    "unit": "set",
+    "priceRub": 18000
+  },
+  {
+    "id": "relay-smart",
+    "category": "panel",
+    "name": "Реле умного света (DIN)",
+    "unit": "pcs",
+    "priceRub": 3500
+  },
+  {
+    "id": "temp-sensor",
+    "category": "automation",
+    "name": "Датчик температуры",
+    "unit": "pcs",
+    "priceRub": 1200
+  },
+  {
+    "id": "open-sensor",
+    "category": "automation",
+    "name": "Датчик открытия (окно/дверь)",
+    "unit": "pcs",
+    "priceRub": 800
+  },
+  {
+    "id": "smarthome-hub",
+    "category": "automation",
+    "name": "Контроллер умного дома",
+    "unit": "pcs",
+    "priceRub": 12000
+  },
+  {
+    "id": "sup-kit",
+    "category": "grounding",
+    "name": "СУП: коробка + провод ПВ-1 4мм",
+    "unit": "set",
+    "priceRub": 2500
+  },
+  {
+    "id": "earth-wire",
+    "category": "grounding",
+    "name": "Провод заземления (доп.)",
+    "unit": "m",
+    "priceRub": 60
+  }
+]

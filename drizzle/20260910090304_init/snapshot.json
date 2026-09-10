@@ -1,0 +1,192 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "id": "6a5ae71e-d618-4ab8-8cac-0153e0f0a87c",
+  "prevIds": ["00000000-0000-0000-0000-000000000000"],
+  "ddl": [
+    {
+      "name": "catalog_materials",
+      "entityType": "tables"
+    },
+    {
+      "name": "catalog_overrides",
+      "entityType": "tables"
+    },
+    {
+      "name": "projects",
+      "entityType": "tables"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "catalog_materials"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "category",
+      "entityType": "columns",
+      "table": "catalog_materials"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "name",
+      "entityType": "columns",
+      "table": "catalog_materials"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "unit",
+      "entityType": "columns",
+      "table": "catalog_materials"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "price_rub",
+      "entityType": "columns",
+      "table": "catalog_materials"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "article",
+      "entityType": "columns",
+      "table": "catalog_materials"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "waste_pct",
+      "entityType": "columns",
+      "table": "catalog_materials"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "material_id",
+      "entityType": "columns",
+      "table": "catalog_overrides"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "price_rub",
+      "entityType": "columns",
+      "table": "catalog_overrides"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "waste_pct",
+      "entityType": "columns",
+      "table": "catalog_overrides"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "projects"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "name",
+      "entityType": "columns",
+      "table": "projects"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "data",
+      "entityType": "columns",
+      "table": "projects"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "projects"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "projects"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "catalog_materials_pk",
+      "table": "catalog_materials",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["material_id"],
+      "nameExplicit": false,
+      "name": "catalog_overrides_pk",
+      "table": "catalog_overrides",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "projects_pk",
+      "table": "projects",
+      "entityType": "pks"
+    }
+  ],
+  "renames": []
+}

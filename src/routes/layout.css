@@ -4,4 +4,6 @@
     light --default,
     dark --prefersdark;
 }
-@source '../../node_modules/@sjsf/daisyui5-theme/dist';
+
+/* dark: следует за data-theme, а не за prefers-color-scheme */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));

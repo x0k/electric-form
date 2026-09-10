@@ -1,55 +1,58 @@
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vitest/config';
 import { playwright } from '@vitest/browser-playwright';
-import adapter from '@sveltejs/adapter-static';
+import adapter from '@sveltejs/adapter-node';
 import { sveltekit } from '@sveltejs/kit/vite';
 
 export default defineConfig({
-	plugins: [
-		tailwindcss(),
-		sveltekit({
-			compilerOptions: {
-				// Force runes mode for the project, except for libraries. Can be removed in svelte 6.
-				runes: ({ filename }) =>
-					filename.split(/[/\\]/).includes('node_modules') ? undefined : true,
-				experimental: { async: true }
-			},
-			adapter: adapter({
-				fallback: '404.html'
-			}),
-			paths: {
-				base: process.argv.includes('dev') ? '' : (process.env.BASE_PATH as `/${string}`)
-			},
-			experimental: { remoteFunctions: true }
-		})
-	],
-	test: {
-		expect: { requireAssertions: true },
-		projects: [
-			{
-				extends: './vite.config.ts',
-				test: {
-					name: 'client',
-					browser: {
-						enabled: true,
-						provider: playwright(),
-						instances: [{ browser: 'chromium', headless: true }]
-					},
-					include: ['src/**/*.svelte.{test,spec}.{js,ts}'],
-					exclude: ['src/lib/server/**']
-				}
-			},
+  plugins: [
+    tailwindcss(),
+    sveltekit({
+      compilerOptions: {
+        // Force runes mode for the project, except for libraries. Can be removed in svelte 6.
+        runes: ({ filename }) =>
+          filename.split(/[/\\]/).includes('node_modules') ? undefined : true,
+        experimental: { async: true },
+      },
+      adapter: adapter(),
+      paths: {
+        // Public-facing origin for CSRF checks when behind a reverse proxy.
+        // Bake-time only (replaces the removed ORIGIN env var in SvelteKit 3):
+        // APP_ORIGIN=https://example.com pnpm run build
+        origin: process.env.APP_ORIGIN || undefined,
+      },
+      experimental: { remoteFunctions: true },
+    }),
+  ],
+  test: {
+    expect: { requireAssertions: true },
+    projects: [
+      {
+        extends: './vite.config.ts',
+        test: {
+          name: 'client',
+          browser: {
+            enabled: true,
+            provider: playwright(),
+            instances: [{ browser: 'chromium', headless: true }],
+          },
+          include: ['src/**/*.svelte.{test,spec}.{js,ts}'],
+          exclude: ['src/lib/server/**'],
+        },
+      },
 
-			{
-				extends: './vite.config.ts',
-				test: {
-					name: 'server',
-					environment: 'node',
-					include: ['src/**/*.{test,spec}.{js,ts}'],
-					exclude: ['src/**/*.svelte.{test,spec}.{js,ts}']
-				}
-			}
-		]
-	},
-	ssr: { noExternal: ['@lucide/svelte'] }
+      {
+        extends: './vite.config.ts',
+        test: {
+          name: 'server',
+          environment: 'node',
+          include: ['src/**/*.{test,spec}.{js,ts}'],
+          exclude: ['src/**/*.svelte.{test,spec}.{js,ts}'],
+        },
+      },
+    ],
+  },
+  ssr: { noExternal: ['@lucide/svelte'] },
+  // .direnv holds nix flake-input symlinks (huge tree) — never watch it.
+  server: { watch: { ignored: ['**/.direnv/**', '**/.git/**'] } },
 });

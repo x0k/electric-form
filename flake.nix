@@ -41,6 +41,7 @@
             mk.packages.${system}.default
             pkgs.nodejs_26
             pkgs.pnpm
+            pkgs.go_1_27
           ];
           shellHook = ''
             export PLAYWRIGHT_BROWSERS_PATH=${playwright-browsers}

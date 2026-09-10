@@ -1,0 +1,99 @@
+{
+  "_comment": "query — канонический запрос для сопоставления; search — поисковые строки по магазинам (поиск Ориона строгий AND, Кристалл/Мкреп — loose); minWords — минимум совпавших слов для spec-запросов.",
+  "materials": {
+    "cable-vvg-3x2.5": {
+      "query": "ВВГ 3х2.5",
+      "search": { "mkrep": "ВВГ 3x2.5" }
+    },
+    "cable-vvg-3x1.5": {
+      "query": "ВВГ 3х1.5",
+      "search": { "mkrep": "ВВГ 3x1.5" }
+    },
+    "cable-vvg-5x6": { "query": "ВВГ 5х6", "search": { "mkrep": "ВВГ 5x6" } },
+    "cable-utp": {
+      "query": "UTP cat5e",
+      "search": { "kristall": "витая пара UTP", "mkrep": "кабель витая пара" }
+    },
+    "cable-tv": {
+      "query": "коаксиальный кабель TV"
+    },
+    "corr-20": { "query": "труба гофрированная 20" },
+    "corr-25": { "query": "труба гофрированная 25" },
+    "box-socket": { "query": "подрозетник" },
+    "box-junction": {
+      "query": "коробка распределительная",
+      "search": { "orion": "коробка распаячная" }
+    },
+    "fix-clips": { "query": "клипса для гофры" },
+    "terminals": { "query": "клемм Wago" },
+    "socket-220": {
+      "query": "розетка с заземлением",
+      "exclude": ["переносная"]
+    },
+    "socket-tv": { "query": "розетка TV" },
+    "socket-rj45": { "query": "розетка RJ45" },
+    "switch-1": { "query": "выключатель 1-клавишный", "minWords": 2 },
+    "switch-pass": { "query": "выключатель проходной" },
+    "switch-dim": {
+      "query": "диммер",
+      "exclude": ["светильник", "ночник", "лампа", "настольный", "настольная"]
+    },
+    "led-kitchen": { "query": "лента светодиодная" },
+    "led-mirror": {
+      "query": "подсветка зеркала",
+      "search": { "orion": "зеркала", "mkrep": "зеркало" }
+    },
+    "led-decor": { "query": "лента светодиодная RGB" },
+    "led-driver-push": {
+      "query": "блок питания светодиодной ленты",
+      "minWords": 3
+    },
+    "push-button": { "query": "выключатель кнопочный" },
+    "led-softstart": { "query": "модуль плавного пуска", "minWords": 2 },
+    "led-box": { "query": "бокс электрический" },
+    "breaker-16": { "query": "автоматический выключатель 16А" },
+    "breaker-25": { "query": "автоматический выключатель 25А" },
+    "breaker-40": { "query": "автоматический выключатель 40А" },
+    "rcd-40-30": { "query": "УЗО 40А 30мА" },
+    "rcd-fire": { "query": "УЗО 300мА" },
+    "rcbo-16": { "query": "дифавтомат 16А" },
+    "voltage-relay": { "query": "реле напряжения" },
+    "spd": { "query": "ограничитель перенапряжения" },
+    "contactor-40": { "query": "контактор 40А" },
+    "wattmeter": { "query": "ваттметр модульный", "minWords": 2 },
+    "volt-ind": { "query": "индикатор напряжения модульный", "minWords": 2 },
+    "box-24": { "query": "щит 24 модуля" },
+    "box-36": { "query": "щит 36 модулей" },
+    "box-54": { "query": "щит 54 модуля" },
+    "din-rail": { "query": "кросс-модуль" },
+    "phase-relay": { "query": "реле контроля фаз" },
+    "poe-switch": {
+      "query": "коммутатор PoE",
+      "search": { "orion": "коммутатор" }
+    },
+    "intercom-kit": { "query": "домофон трубка" },
+    "leak-sensor": { "query": "датчик протечки", "minWords": 2 },
+    "leak-valve": { "query": "клапан электромагнитный", "minWords": 2 },
+    "smoke-sensor": { "query": "датчик дыма", "minWords": 2 },
+    "motion-sensor": {
+      "query": "датчик движения",
+      "minWords": 2,
+      "exclude": ["лампа", "светильник", "прожектор", "ночник"]
+    },
+    "curtain-motor": {
+      "query": "карниз электропривод",
+      "minWords": 2,
+      "search": { "orion": "карниз", "mkrep": "электрокарниз" }
+    },
+    "relay-smart": { "query": "реле умное" },
+    "temp-sensor": { "query": "датчик температуры" },
+    "open-sensor": { "query": "датчик открытия", "minWords": 2 },
+    "smarthome-hub": {
+      "query": "контроллер умного дома",
+      "minWords": 2,
+      "search": { "orion": "контроллер" }
+    },
+    "sup-kit": { "query": "коробка уравнивания потенциалов" },
+    "earth-wire": { "query": "провод ПуВ 4" }
+  }
+}

@@ -45,8 +45,23 @@ c:
 p:
   pnpm run preview
 
+image:
+  docker build -t electric-form .
+
+run-image:
+  docker run --rm -p 3000:3000 electric-form $@
+
 cs:
   pnpm changeset
+
+prices-build:
+  cd parsers && nix --extra-experimental-features "nix-command flakes" run nixpkgs#go_1_27 -- build -o ../parsers-bin ./cmd/prices
+
+prices-scrape:
+  ./parsers-bin scrape --city syktyvkar --delay 600ms $@
+
+prices-test:
+  cd parsers && nix --extra-experimental-features "nix-command flakes" run nixpkgs#go_1_27 -- test ./...
 
 h:
   mk -P targets "*"

@@ -9,6 +9,16 @@ node_modules
 /.svelte-kit
 /build
 
+# SQLite
+/data
+*.db
+*.db-wal
+*.db-shm
+
+# Go parsers
+/parsers-bin
+/parsers/bin/
+
 # OS
 .DS_Store
 Thumbs.db
