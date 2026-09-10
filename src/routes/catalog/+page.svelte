@@ -8,6 +8,12 @@
     type OverrideMap,
   } from '#lib/catalog/index';
   import { loadOverrides, persistOverrides } from '#lib/storage/repo';
+  import { resetHeader, setHeader } from '../../header.svelte.js';
+
+  $effect(() => {
+    setHeader({ title: 'Каталог материалов', backHref: '/' });
+    return () => resetHeader();
+  });
 
   let overrides = $state<OverrideMap>({});
   let query = $state('');
@@ -80,21 +86,17 @@
   }
 </script>
 
-<div class="mx-auto w-full max-w-xl px-3 pt-4 pb-8">
-  <a class="link link-hover text-sm opacity-70" href="/">← Проекты</a>
-  <div class="mt-1 flex items-center gap-2">
-    <h1 class="min-w-0 flex-1 truncate text-lg font-bold">
-      Каталог материалов
-    </h1>
+<div class="mx-auto w-full max-w-xl px-4 pt-4 pb-8">
+  <div class="flex items-center gap-2">
+    <p class="min-w-0 flex-1 text-sm opacity-70">
+      Цены и запас поверх базового прайса. Применяются во всех расчётах сразу.
+    </p>
     {#if changedCount > 0}
       <span class="badge badge-primary badge-sm shrink-0"
         >изменено: {changedCount}</span
       >
     {/if}
   </div>
-  <p class="mt-1 text-sm opacity-70">
-    Цены и запас поверх базового прайса. Применяются во всех расчётах сразу.
-  </p>
 
   <input
     class="input input-bordered mt-3 h-11 w-full"

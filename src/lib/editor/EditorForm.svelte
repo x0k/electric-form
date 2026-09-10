@@ -19,6 +19,7 @@
   } from '#lib/catalog/index';
   import { loadOverrides } from '#lib/storage/repo';
   import { createProjectForm } from '#lib/forms/ctx';
+  import { resetHeader, setHeader } from '../../header.svelte.js';
   import type { ProjectInput } from '#lib/forms/ctx';
   import { STEPS } from '#lib/forms/steps';
   import { ProjectSchema } from '#lib/project/schemas';
@@ -78,6 +79,12 @@
     if (parsed.success) lastValid = parsed.output;
   });
   const view: Project = $derived(parsed.success ? parsed.output : lastValid);
+
+  // Название проекта — в шапку (обновляется прямо при вводе).
+  $effect(() => {
+    setHeader({ title: view.meta.name || 'Проект', backHref: '/' });
+    return () => resetHeader();
+  });
 
   // Автосейв (дебаунс): валидируем стор, сохраняем только выход схемы.
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -178,18 +185,9 @@
     bind:checked={menuOpen}
   />
   <div class="drawer-content">
-    <div class="mx-auto w-full max-w-xl px-3 pt-3 pb-28">
-      <a class="link link-hover text-sm opacity-70" href="/">← Проекты</a>
-      <div class="mt-1 flex items-center gap-2">
-        <h1 class="min-w-0 flex-1 truncate text-lg font-bold">
-          {view.meta.name}
-        </h1>
-        <span class="badge badge-ghost badge-sm shrink-0"
-          >{saved ? 'сохранено' : '…'}</span
-        >
-      </div>
-      <div class="mt-1 flex items-center gap-2 text-xs opacity-60">
-        <span class="tabular-nums"
+    <div class="mx-auto w-full max-w-xl px-4 pt-4 pb-28">
+      <div class="flex items-center gap-2 text-xs opacity-60">
+        <span class="shrink-0 tabular-nums"
           >{STEPS[step].title} · {step + 1}/{STEPS.length}</span
         >
         <progress
@@ -198,6 +196,9 @@
           max={STEPS.length}
           aria-label="Заполнено этапов: {doneCount} из {STEPS.length}"
         ></progress>
+        <span class="badge badge-ghost badge-sm shrink-0 tabular-nums"
+          >{saved ? 'сохранено' : '…'}</span
+        >
       </div>
 
       {#if STEPS[step].id === 'result' && validatedOnce && totalErrors > 0}

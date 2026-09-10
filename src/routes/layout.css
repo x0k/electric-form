@@ -4,3 +4,6 @@
     light --default,
     dark --prefersdark;
 }
+
+/* dark: следует за data-theme, а не за prefers-color-scheme */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));

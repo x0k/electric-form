@@ -1,6 +1,14 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
+  import {
+    BookOpen,
+    Calculator,
+    Copy,
+    Download,
+    Trash2,
+    Upload,
+  } from '@lucide/svelte';
   import { createDefaultProject } from '#lib/project/defaults';
   import type { Project } from '#lib/project/types';
   import { exportAll, importMany } from '#lib/storage/io';
@@ -36,6 +44,8 @@
   }
 
   function remove(id: string) {
+    const target = projects.find((p) => p.meta.id === id);
+    if (target && !confirm(`Удалить проект «${target.meta.name}»?`)) return;
     projects = projects.filter((p) => p.meta.id !== id);
     save();
   }
@@ -62,72 +72,111 @@
   }
 </script>
 
-<div class="mx-auto w-full max-w-xl px-3 pt-4 pb-8">
-  <h1 class="text-xl font-bold">Проекты электрики</h1>
-  <p class="mt-1 text-sm opacity-70">
-    Предварительная оценка материалов и сроков для квартир.
-  </p>
-
-  <div class="mt-4 flex flex-col gap-2 sm:flex-row">
+<div class="mx-auto w-full max-w-xl px-4 pt-4 pb-10">
+  <section class="card bg-base-200 p-4" aria-label="Новый проект">
+    <h1 class="text-base font-bold">Новый проект</h1>
+    <p class="mt-0.5 text-sm opacity-60">
+      Оценка материалов и сроков электромонтажа квартиры.
+    </p>
     <input
-      class="input input-bordered h-11 flex-1"
-      placeholder="Название проекта"
+      class="input input-bordered mt-3 h-12 w-full"
+      placeholder="Название, например «Двушка 72 м²»"
       enterkeyhint="go"
+      autocomplete="off"
       bind:value={name}
       onkeydown={(e) => e.key === 'Enter' && create()}
     />
-    <button class="btn btn-primary h-11 sm:w-auto" onclick={create}
-      >Создать</button
-    >
-  </div>
+    <button class="btn btn-primary mt-2 h-12 w-full" onclick={create}>
+      Создать
+    </button>
+  </section>
 
-  <div class="mt-3 flex flex-wrap gap-2">
-    <button class="btn btn-ghost btn-sm" onclick={download}>Экспорт JSON</button
-    >
-    <label class="btn btn-ghost btn-sm">
-      Импорт JSON
-      <input
-        type="file"
-        accept="application/json"
-        class="hidden"
-        onchange={onImport}
-      />
-    </label>
-    <a class="btn btn-ghost btn-sm" href="/catalog">Каталог цен</a>
-  </div>
+  <a class="btn btn-outline mt-3 h-12 w-full" href="/catalog">
+    <BookOpen size={18} />
+    Каталог цен
+  </a>
 
-  {#if projects.length === 0}
-    <div class="alert mt-6 text-sm">
-      <span>Пока нет проектов — создайте первый выше.</span>
+  <section class="mt-6" aria-label="Проекты">
+    <div class="flex items-center">
+      <h2 class="px-1 text-base font-bold">
+        Проекты
+        {#if projects.length > 0}
+          <span
+            class="badge badge-ghost badge-sm ml-1 align-middle tabular-nums"
+            >{projects.length}</span
+          >
+        {/if}
+      </h2>
+      <div class="flex-1"></div>
+      <button
+        class="btn btn-ghost btn-sm btn-square"
+        title="Экспорт JSON"
+        aria-label="Экспорт всех проектов в JSON"
+        onclick={download}
+      >
+        <Download size={18} />
+      </button>
+      <label
+        class="btn btn-ghost btn-sm btn-square"
+        title="Импорт JSON"
+        aria-label="Импорт проектов из JSON"
+      >
+        <Upload size={18} />
+        <input
+          type="file"
+          accept="application/json"
+          class="hidden"
+          onchange={onImport}
+        />
+      </label>
     </div>
-  {:else}
-    <ul class="mt-4 space-y-2">
-      {#each projects as p (p.meta.id)}
-        <li class="card bg-base-200 p-3">
-          <div class="flex items-center gap-2">
-            <div class="min-w-0 flex-1">
-              <a
-                class="link block truncate font-medium"
-                href={`/p/${p.meta.id}`}>{p.meta.name}</a
+
+    {#if projects.length === 0}
+      <div
+        class="mt-2 rounded-2xl border border-dashed border-base-300 px-4 py-8 text-center"
+      >
+        <div
+          class="mx-auto grid size-12 place-items-center rounded-full bg-base-200"
+        >
+          <Calculator size={22} class="opacity-60" />
+        </div>
+        <p class="mt-3 font-medium">Пока нет проектов</p>
+        <p class="mt-1 text-sm opacity-60">
+          Введите название выше и нажмите «Создать»
+        </p>
+      </div>
+    {:else}
+      <ul class="mt-2 space-y-2">
+        {#each projects as p (p.meta.id)}
+          <li class="card bg-base-200">
+            <div class="flex items-center gap-0.5 p-1.5">
+              <a class="min-w-0 flex-1 px-2.5 py-2" href={`/p/${p.meta.id}`}>
+                <span class="block truncate font-medium">{p.meta.name}</span>
+                <span class="mt-0.5 block text-xs opacity-60 tabular-nums"
+                  >{p.general.areaM2} м² · {p.general.rooms}к · {p.general
+                    .bathrooms}с/у</span
+                >
+              </a>
+              <button
+                class="btn btn-ghost btn-square shrink-0"
+                title="Дублировать"
+                aria-label="Дублировать {p.meta.name}"
+                onclick={() => duplicate(p.meta.id)}
               >
-              <span class="text-xs opacity-60 tabular-nums"
-                >{p.general.areaM2} м² · {p.general.rooms}к · {p.general
-                  .bathrooms}с/у</span
+                <Copy size={19} />
+              </button>
+              <button
+                class="btn btn-ghost btn-square shrink-0 text-error"
+                title="Удалить"
+                aria-label="Удалить {p.meta.name}"
+                onclick={() => remove(p.meta.id)}
               >
+                <Trash2 size={19} />
+              </button>
             </div>
-            <button
-              class="btn btn-ghost btn-sm shrink-0"
-              aria-label="Дублировать {p.meta.name}"
-              onclick={() => duplicate(p.meta.id)}>Копия</button
-            >
-            <button
-              class="btn btn-ghost btn-sm shrink-0 text-error"
-              aria-label="Удалить {p.meta.name}"
-              onclick={() => remove(p.meta.id)}>✕</button
-            >
-          </div>
-        </li>
-      {/each}
-    </ul>
-  {/if}
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  </section>
 </div>
