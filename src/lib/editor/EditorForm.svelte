@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { SvelteSet } from 'svelte/reactivity';
   import {
     focus,
@@ -12,14 +11,10 @@
   import * as v from 'valibot';
   import { calculate } from '#lib/calc/engine';
   import { calcSavings } from '#lib/calc/savings';
-  import {
-    SEED_CATALOG,
-    applyOverrides,
-    type OverrideMap,
-  } from '#lib/catalog/index';
-  import { loadOverrides } from '#lib/storage/repo';
+  import { SEED_CATALOG, type OverrideMap } from '#lib/catalog/index';
+  import type { Material } from '#lib/catalog/types';
+  import { getCatalogData } from '#lib/catalog.remote';
   import { createProjectForm } from '#lib/forms/ctx';
-  import { resetHeader, setHeader } from '../../header.svelte.js';
   import type { ProjectInput } from '#lib/forms/ctx';
   import { STEPS } from '#lib/forms/steps';
   import { ProjectSchema } from '#lib/project/schemas';
@@ -62,12 +57,16 @@
   let validatedOnce = $state(false);
   let saved = $state(true);
 
-  // Пользовательские цены/запасы поверх seed-каталога (редактор /catalog).
-  let overrides = $state<OverrideMap>({});
-  onMount(() => {
-    overrides = loadOverrides();
-  });
-  const catalog = $derived(applyOverrides(SEED_CATALOG, overrides));
+  // Каталог — серверный query; пока грузится, считаем по seed.
+  // Инстанс активен пока смонтирован редактор: arrived-данные подхватятся
+  // реактивно через .current, без onMount и ручных refetch.
+  const catalogQuery = getCatalogData();
+  const catalog = $derived<Material[]>(
+    catalogQuery.current?.materials ?? SEED_CATALOG
+  );
+  const overrides = $derived<OverrideMap>(
+    catalogQuery.current?.overrides ?? {}
+  );
   const overriddenCount = $derived(Object.keys(overrides).length);
 
   // Живой ввод из стора. Во время некорректного промежуточного ввода
@@ -79,12 +78,6 @@
     if (parsed.success) lastValid = parsed.output;
   });
   const view: Project = $derived(parsed.success ? parsed.output : lastValid);
-
-  // Название проекта — в шапку (обновляется прямо при вводе).
-  $effect(() => {
-    setHeader({ title: view.meta.name || 'Проект', backHref: '/' });
-    return () => resetHeader();
-  });
 
   // Автосейв (дебаунс): валидируем стор, сохраняем только выход схемы.
   let timer: ReturnType<typeof setTimeout> | undefined;

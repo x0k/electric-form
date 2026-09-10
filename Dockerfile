@@ -21,9 +21,16 @@ FROM node:26-slim AS runner
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=3000
+# SQLite (drizzle + node:sqlite): файл БД и миграции.
+# Remote-функции сверяют Origin с origin из сборки (см. APP_ORIGIN выше):
+# за reverse proxy с TLS соберите с APP_ORIGIN=https://example.com,
+# при прямой раздаче HTTP — с APP_ORIGIN=http://host:port.
+ENV DATA_DIR=/data
 WORKDIR /app
 COPY --from=build /app/build ./build
+COPY --from=build /app/drizzle ./drizzle
 COPY --from=build /app/node_modules ./node_modules
 COPY package.json ./
+VOLUME /data
 EXPOSE 3000
 CMD ["node", "build"]

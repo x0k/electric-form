@@ -9,6 +9,12 @@ node_modules
 /.svelte-kit
 /build
 
+# SQLite
+/data
+*.db
+*.db-wal
+*.db-shm
+
 # OS
 .DS_Store
 Thumbs.db
