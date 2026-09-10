@@ -28,6 +28,14 @@ FROM node:26-slim AS runner
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=3000
+# Go-парсер (CGO_ENABLED=0) проверяет TLS системным CA-бандлом через
+# crypto/x509 — в node:slim его нет, без этого все HTTPS-запросы падают
+# с "x509: certificate signed by unknown authority".
+# За MITM-прокси с собственным CA: смонтируйте сертификат и задайте
+# SSL_CERT_FILE=/path/to/ca.crt (Go его подхватывает).
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates \
+  && rm -rf /var/lib/apt/lists
 # SQLite (drizzle + node:sqlite): файл БД и миграции.
 # Remote-функции сверяют Origin с origin из сборки (см. APP_ORIGIN выше):
 # за reverse proxy с TLS соберите с APP_ORIGIN=https://example.com,
