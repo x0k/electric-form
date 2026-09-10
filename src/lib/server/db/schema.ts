@@ -30,6 +30,34 @@ export const catalogOverrides = sqliteTable('catalog_overrides', {
   wastePct: integer('waste_pct'),
 });
 
+/** Прогоны Go-парсера цен (parsers/). */
+export const priceRuns = sqliteTable('price_runs', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  city: text('city').notNull(),
+  status: text('status').notNull(),
+  error: text('error'),
+  startedAt: text('started_at').notNull(),
+  finishedAt: text('finished_at'),
+});
+
+/** Сырые офферы магазинов: все цены хранятся, смета берет min. */
+export const priceOffers = sqliteTable('price_offers', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  runId: integer('run_id'),
+  materialId: text('material_id').notNull(),
+  shop: text('shop').notNull(),
+  title: text('title').notNull(),
+  url: text('url').notNull(),
+  article: text('article'),
+  priceRub: integer('price_rub').notNull(),
+  unit: text('unit').notNull(),
+  inStock: integer('in_stock').notNull(),
+  city: text('city').notNull(),
+  observedAt: text('observed_at').notNull(),
+});
+
 export type ProjectRow = typeof projects.$inferSelect;
 export type MaterialRow = typeof catalogMaterials.$inferSelect;
 export type OverrideRow = typeof catalogOverrides.$inferSelect;
+export type PriceRunRow = typeof priceRuns.$inferSelect;
+export type PriceOfferRow = typeof priceOffers.$inferSelect;

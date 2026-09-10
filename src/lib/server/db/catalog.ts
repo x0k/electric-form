@@ -2,14 +2,26 @@ import { eq } from 'drizzle-orm';
 import { applyOverrides, type OverrideMap } from '#lib/catalog/catalog';
 import { DEFAULT_WASTE_PCT, type Material } from '#lib/catalog/types';
 import type { Db } from './client';
+import {
+  applyMarketMin,
+  DEFAULT_CITY,
+  getMarketMin,
+  type MarketMin,
+} from './prices';
 import { catalogMaterials, catalogOverrides } from './schema';
 
 export interface CatalogData {
   /** База без overrides (для инпутов и сравнения). */
   base: Material[];
-  /** База с применёнными overrides (для расчётов). */
+  /**
+   * База с применёнными overrides и рыночным min (для расчётов).
+   * Приоритет цены: ручной override > min(база, рынок) — смета всегда
+   * считает по минимальной стоимости.
+   */
   materials: Material[];
   overrides: OverrideMap;
+  /** Рыночный min по Сыктывкару (для подсказок в UI). */
+  market: Record<string, MarketMin>;
 }
 
 export async function getCatalog(db: Db): Promise<CatalogData> {
@@ -33,7 +45,13 @@ export async function getCatalog(db: Db): Promise<CatalogData> {
     if (o.wastePct != null) entry.wastePct = o.wastePct;
     if (Object.keys(entry).length > 0) overrides[o.materialId] = entry;
   }
-  return { base, materials: applyOverrides(base, overrides), overrides };
+  const market = await getMarketMin(db, base, DEFAULT_CITY);
+  return {
+    base,
+    materials: applyOverrides(applyMarketMin(base, market), overrides),
+    overrides,
+    market,
+  };
 }
 
 export interface OverrideInput {
@@ -56,12 +74,23 @@ export async function setOverride(
     .where(eq(catalogMaterials.id, id));
   if (rows.length === 0) throw new Error(`Неизвестный материал: ${id}`);
   const base = rows[0];
+  const asMaterial: Material = {
+    id: base.id,
+    category: base.category as Material['category'],
+    name: base.name,
+    unit: base.unit as Material['unit'],
+    priceRub: base.priceRub,
+  };
+  const market = await getMarketMin(db, [asMaterial], DEFAULT_CITY);
+  const marketPrice = market[id]?.priceRub;
+  const effectiveBase =
+    marketPrice != null ? Math.min(base.priceRub, marketPrice) : base.priceRub;
 
   const next: OverrideInput = {};
   if (
     input.priceRub != null &&
     Number.isFinite(input.priceRub) &&
-    Math.round(input.priceRub) !== base.priceRub &&
+    Math.round(input.priceRub) !== effectiveBase &&
     Math.round(input.priceRub) >= 0
   ) {
     next.priceRub = Math.round(input.priceRub);

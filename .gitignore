@@ -15,6 +15,10 @@ node_modules
 *.db-wal
 *.db-shm
 
+# Go parsers
+/parsers-bin
+/parsers/bin/
+
 # OS
 .DS_Store
 Thumbs.db

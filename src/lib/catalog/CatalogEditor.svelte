@@ -11,15 +11,20 @@
     resetCatalogOverride,
     setCatalogOverride,
   } from '#lib/catalog.remote';
+  import type { MarketOffer, MarketMin } from '#lib/server/db/prices';
 
   type DraftValue = { priceRub?: number; wastePct?: number } | null;
 
   let {
     base,
     serverOverrides,
+    market = {},
+    offers = {},
   }: {
     base: Material[];
     serverOverrides: OverrideMap;
+    market?: Record<string, MarketMin>;
+    offers?: Record<string, MarketOffer[]>;
   } = $props();
 
   /** Локальные правки поверх серверного состояния (seq защищает от гонок). */
@@ -115,6 +120,11 @@
     stage(id, undefined);
   }
 
+  function applyMarket(id: string) {
+    const mm = market[id];
+    if (mm) setPrice(id, mm.priceRub);
+  }
+
   async function resetAll() {
     drafts = {};
     try {
@@ -171,6 +181,45 @@
                 <div class="text-xs opacity-60 tabular-nums">
                   база: {m.priceRub} ₽/{m.unit} · запас: {effectiveWaste(m)}%
                 </div>
+                {#if market[m.id] && market[m.id].priceRub < m.priceRub}
+                  {@const mm = market[m.id]}
+                  {@const list = offers[m.id] ?? []}
+                  <div class="mt-1 text-xs tabular-nums">
+                    <span class="badge badge-success badge-sm">
+                      рынок: {mm.priceRub} ₽ · {mm.shop}
+                    </span>
+                    <button
+                      class="btn btn-ghost btn-xs"
+                      onclick={() => applyMarket(m.id)}
+                    >
+                      применить
+                    </button>
+                    {#if list.length > 0}
+                      <details class="mt-1">
+                        <summary class="cursor-pointer opacity-60">
+                          все {list.length} оффера
+                        </summary>
+                        <ul class="mt-1 space-y-0.5">
+                          {#each list as of (of.id)}
+                            <li class="opacity-80">
+                              <a
+                                class="link"
+                                href={of.url}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                {of.shop}: {of.priceRub} ₽/{of.unit}{of.inStock
+                                  ? ''
+                                  : ' (нет в наличии)'}
+                              </a>
+                              <span class="opacity-60"> — {of.title}</span>
+                            </li>
+                          {/each}
+                        </ul>
+                      </details>
+                    {/if}
+                  </div>
+                {/if}
               </div>
               {#if isChanged(m.id)}
                 <button

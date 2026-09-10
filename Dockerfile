@@ -1,5 +1,12 @@
 # syntax=docker/dockerfile:1
-# SvelteKit (adapter-node) image
+# SvelteKit (adapter-node) image + Go-парсер цен (parsers-bin).
+
+FROM golang:1.27-alpine AS prices
+WORKDIR /src/parsers
+COPY parsers/go.mod parsers/go.sum ./
+RUN go mod download
+COPY parsers/ ./
+RUN CGO_ENABLED=0 go build -o /out/parsers-bin ./cmd/prices
 
 FROM node:26-slim AS build
 # Public-facing origin for CSRF checks when behind a reverse proxy (SvelteKit 3
@@ -30,6 +37,7 @@ WORKDIR /app
 COPY --from=build /app/build ./build
 COPY --from=build /app/drizzle ./drizzle
 COPY --from=build /app/node_modules ./node_modules
+COPY --from=prices /out/parsers-bin ./parsers-bin
 COPY package.json ./
 VOLUME /data
 EXPOSE 3000

@@ -1,12 +1,20 @@
 <script lang="ts">
-  import { getCatalogData } from '#lib/catalog.remote';
+  import { getCatalogData, getPriceData } from '#lib/catalog.remote';
   import CatalogEditor from '#lib/catalog/CatalogEditor.svelte';
+  import MarketPricesPanel from '#lib/catalog/MarketPricesPanel.svelte';
 </script>
 
 <div class="mx-auto w-full max-w-xl px-4 pt-4 pb-8">
   <svelte:boundary>
     {const data = $derived(await getCatalogData())}
-    <CatalogEditor base={data.base} serverOverrides={data.overrides} />
+    {const prices = $derived(await getPriceData())}
+    <MarketPricesPanel run={prices.run} />
+    <CatalogEditor
+      base={data.base}
+      serverOverrides={data.overrides}
+      market={data.market}
+      offers={prices.offersByMaterial}
+    />
 
     {#snippet pending()}
       <div class="space-y-2">
