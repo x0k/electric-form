@@ -77,12 +77,12 @@ export function isPushLed(p: Project): boolean {
   return p.lighting.ledControl === 'push' && estimateLedZones(p) > 0;
 }
 
-/** Количество отдельных силовых линий. */
+/** Количество отдельных силовых линий. 0 шт = нет потребителя. */
 export function estimateDedicatedLines(p: Project): number {
   let n = 0;
   for (const c of p.power.consumers) {
-    if (!c.present) continue;
-    const qty = Math.max(c.qty, 1);
+    const qty = c.qty ?? 0;
+    if (qty <= 0) continue;
     if (c.dedicatedLine) n += qty;
   }
   return n;
@@ -91,8 +91,7 @@ export function estimateDedicatedLines(p: Project): number {
 /** Активных кондиционеров (для закладных трасс). */
 export function estimateConditionerQty(p: Project): number {
   const c = p.power.consumers.find((x) => x.kind === 'conditioner');
-  if (!c || !c.present) return 0;
-  return Math.max(c.qty, 1);
+  return c?.qty ?? 0;
 }
 
 /** Все линии щита (грубо, для автоматов и трудозатрат). */

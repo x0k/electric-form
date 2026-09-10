@@ -90,10 +90,9 @@ export function createDefaultProject(name = 'Новая квартира'): Proj
     power: {
       consumers: CONSUMER_KINDS.map((kind) => ({
         kind,
-        present: false,
         qty: 0,
-        // Отдельную линию включает пользователь явно — тихого присутствия нет.
-        dedicatedLine: false,
+        // Силовые по умолчанию сидят на отдельных линиях — снять можно ниже.
+        dedicatedLine: true,
         powerKw: DEFAULT_POWER_KW[kind],
       })),
       conditionerChase: false,

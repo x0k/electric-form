@@ -44,9 +44,9 @@ describe('дефолт проекта', () => {
     expect(p.sensors.smokeQty).toBe(0);
     expect(p.sensors.motionQty).toBe(0);
     expect(p.sensors.curtainQty).toBe(0);
-    // Потребители: ни один не отмечен, отдельных линий нет.
-    expect(p.power.consumers.every((c) => !c.present)).toBe(true);
-    expect(p.power.consumers.every((c) => !c.dedicatedLine)).toBe(true);
+    // Потребители: количества нулевые (0 = нет), линии отдельные по умолчанию.
+    expect(p.power.consumers.every((c) => c.qty === 0)).toBe(true);
+    expect(p.power.consumers.every((c) => c.dedicatedLine)).toBe(true);
     // Щит и работы: без запаса и опций.
     expect(p.panel.reserveModules).toBe(0);
     expect(Object.values(p.panel.options).every((v) => !v)).toBe(true);

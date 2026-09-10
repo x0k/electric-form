@@ -37,7 +37,6 @@ describe('7 steps', () => {
     const base = createDefaultProject('base');
     const mod = createDefaultProject('mod');
     const cond = mod.power.consumers.find((c) => c.kind === 'conditioner')!;
-    cond.present = true;
     cond.qty = 2;
     cond.dedicatedLine = true;
     mod.power.conditionerChase = true;
@@ -50,7 +49,6 @@ describe('7 steps', () => {
     const cond2 = noChase.power.consumers.find(
       (c) => c.kind === 'conditioner'
     )!;
-    cond2.present = true;
     cond2.qty = 2;
     cond2.dedicatedLine = true;
     expect(

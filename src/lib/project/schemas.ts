@@ -66,7 +66,7 @@ export const GeneralSchema = v.object({
 
 export const PowerConsumerSchema = v.object({
   kind: ConsumerKindSchema,
-  present: v.boolean(),
+  /** 0 = нет потребителя, >0 = есть в указанном количестве. */
   qty: int(0, 10),
   dedicatedLine: v.boolean(),
   powerKw: num(0, 15),

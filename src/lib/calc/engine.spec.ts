@@ -23,7 +23,6 @@ describe('engine v1', () => {
     const base = createDefaultProject('base');
     const mod = createDefaultProject('mod');
     const cond = mod.power.consumers.find((c) => c.kind === 'conditioner')!;
-    cond.present = true;
     cond.qty = 3;
     cond.dedicatedLine = true;
     mod.power.conditionerChase = true;
@@ -46,7 +45,6 @@ describe('engine v1', () => {
   it('этапы в сумме дают итог, кабель — черновой, розетки — чистовой', () => {
     const p = createDefaultProject('stages');
     p.general.areaM2 = 70;
-    p.power.consumers[0].present = true;
     p.power.consumers[0].qty = 1;
     p.power.consumers[0].dedicatedLine = true;
     p.lowVoltage.ethernetPoints = 4;
