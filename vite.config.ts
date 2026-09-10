@@ -1,7 +1,7 @@
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vitest/config';
 import { playwright } from '@vitest/browser-playwright';
-import adapter from '@sveltejs/adapter-static';
+import adapter from '@sveltejs/adapter-node';
 import { sveltekit } from '@sveltejs/kit/vite';
 
 export default defineConfig({
@@ -14,13 +14,12 @@ export default defineConfig({
           filename.split(/[/\\]/).includes('node_modules') ? undefined : true,
         experimental: { async: true },
       },
-      adapter: adapter({
-        fallback: '404.html',
-      }),
+      adapter: adapter(),
       paths: {
-        base: process.argv.includes('dev')
-          ? ''
-          : (process.env.BASE_PATH as `/${string}`),
+        // Public-facing origin for CSRF checks when behind a reverse proxy.
+        // Bake-time only (replaces the removed ORIGIN env var in SvelteKit 3):
+        // APP_ORIGIN=https://example.com pnpm run build
+        origin: process.env.APP_ORIGIN || undefined,
       },
       experimental: { remoteFunctions: true },
     }),

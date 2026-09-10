@@ -45,6 +45,12 @@ c:
 p:
   pnpm run preview
 
+image:
+  docker build -t electric-form .
+
+run-image:
+  docker run --rm -p 3000:3000 electric-form $@
+
 cs:
   pnpm changeset
 
