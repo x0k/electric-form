@@ -10,7 +10,6 @@
     discardDraft,
     editFeature,
     headState,
-    makeFeatureId,
     stageOp,
     stateAt,
     stageLabel,
@@ -49,8 +48,6 @@
     'sockets',
     'lighting',
   ];
-
-  const STEP_TOTAL = MODEL_SCREENS.length + 2; // sketch + viewer
 
   let history: PlanHistory = $state(createHistory());
   let screen: Screen = $state('sketch');
@@ -134,12 +131,6 @@
       : 'viewer';
   }
 
-  function stepNumber(s: Screen): number {
-    if (s === 'sketch') return 1;
-    if (s === 'viewer') return STEP_TOTAL;
-    return MODEL_SCREENS.indexOf(s) + 2;
-  }
-
   function handleCommitSketch(payload: { ops: Operation[]; roomName: string }) {
     if (!committed) {
       let h = history;
@@ -174,11 +165,56 @@
     editingIndex = null;
   }
 
-  function handleEditLayout() {
-    if (history.draft.length > 0 || editingIndex !== null) {
-      message = 'Сначала закоммитьте или сбросьте черновик текущего этапа.';
-      return;
+  /**
+   * Автокоммит черновика перед уходом с этапа: вместо запрета
+   * «сначала закоммитьте» молча фиксируем изменения текущей Feature
+   * (в правке — через editFeature с пересчётом зависимых).
+   * Возвращает false, если фиксировать не удалось — навигация отменяется.
+   */
+  function autocommitDraft(): boolean {
+    if (editingIndex !== null) {
+      const idx = editingIndex;
+      if (history.draft.length === 0) {
+        // В правке ничего не меняли — просто выходим из неё.
+        editingIndex = null;
+        previewIndex = null;
+        message = null;
+        return true;
+      }
+      const e = editFeature(history, idx, history.draft);
+      if (!e.ok) {
+        message = `Правка отклонена: ${e.error.message}`;
+        return false;
+      }
+      history = { ...e.result.history, draft: [] };
+      editingIndex = null;
+      previewIndex = null;
+      const n = e.result.conflicts.length;
+      message =
+        n === 0
+          ? `Feature #${idx + 1} обновлена, зависимые пересчитаны.`
+          : `Применено, конфликтов downstream: ${n} — см. панель.`;
+      return true;
     }
+    if (history.draft.length === 0) return true;
+    if (screen === 'sketch' || screen === 'viewer') return true;
+    const stage = screen as StageKind;
+    const c = commitDraft(history, {
+      stage,
+      label: `${stageLabel(stage)} #${history.features.length + 1}`,
+    });
+    if (!c.ok) {
+      message = `Commit отклонён: ${c.error.message}`;
+      return false;
+    }
+    history = c.history;
+    previewIndex = null;
+    message = `${stageLabel(stage)} — закоммичено (авто).`;
+    return true;
+  }
+
+  function handleEditLayout() {
+    if (!autocommitDraft()) return;
     const room = head.rooms[DEFAULT_LAYOUT_OPTS.roomId];
     if (!room) {
       message = 'В голове истории нет помещения для правки.';
@@ -191,7 +227,7 @@
     screen = 'sketch';
   }
 
-  /** Клик по Feature Tree: просмотр коммита на его экране. */
+  /** Глаз в Feature Tree: просмотр коммита на его экране. */
   function handleTreeSelect(i: number) {
     if (previewIndex === i) {
       previewIndex = null;
@@ -199,10 +235,7 @@
       message = null;
       return;
     }
-    if (history.draft.length > 0 || editingIndex !== null) {
-      message = 'Сначала закоммитьте или сбросьте черновик текущего этапа.';
-      return;
-    }
+    if (!autocommitDraft()) return;
     const f = history.features[i];
     if (!f) return;
     previewIndex = i;
@@ -210,21 +243,27 @@
     message = null;
   }
 
-  /** Из просмотра — в правку этого этапа. */
-  function handleEditStage() {
-    if (previewIndex === null) return;
-    const f = history.features[previewIndex];
+  /** Двойной клик по Feature Tree — сразу в правку этого этапа. */
+  function handleEditFeature(i: number) {
+    if (!autocommitDraft()) return;
+    const f = history.features[i];
     if (!f) return;
     if (f.stage === 'layout') {
       previewIndex = null;
       handleEditLayout();
       return;
     }
-    editingIndex = previewIndex;
+    editingIndex = i;
     previewIndex = null;
     history = { ...history, draft: [...f.ops] };
     screen = f.stage as Screen;
     message = `Редактирование Feature #${f.index + 1} (${stageLabel(f.stage)}). Commit пересчитает зависимые этапы.`;
+  }
+
+  /** Из просмотра — в правку этого этапа. */
+  function handleEditStage() {
+    if (previewIndex === null) return;
+    handleEditFeature(previewIndex);
   }
 
   function handleOp(op: Operation) {
@@ -276,41 +315,8 @@
     message = null;
   }
 
-  /**
-   * Пропуск этапа: коммитит ПУСТУЮ Feature, чтобы история осталась полной
-   * (этап виден в дереве, позже заполняется через «Редактировать этап»).
-   */
-  function handleSkip() {
-    if (screen === 'sketch' || screen === 'viewer') return;
-    if (history.draft.length > 0) {
-      message = 'В черновике есть изменения — Commit или Сбросить.';
-      return;
-    }
-    const stage = screen as StageKind;
-    history = {
-      features: [
-        ...history.features,
-        {
-          id: makeFeatureId(),
-          index: history.features.length,
-          stage,
-          label: `${stageLabel(stage)} — пусто`,
-          ops: [],
-          createdAt: new Date().toISOString(),
-        },
-      ],
-      draft: [],
-    };
-    previewIndex = null;
-    message = `${stageLabel(stage)} — пропущен (пусто, можно дополнить позже).`;
-    screen = headScreen();
-  }
-
   function handleToViewer() {
-    if (history.draft.length > 0 || editingIndex !== null) {
-      message = 'Сначала закоммитьте или сбросьте черновик текущего этапа.';
-      return;
-    }
+    if (!autocommitDraft()) return;
     previewIndex = null;
     screen = 'viewer';
     message = null;
@@ -393,6 +399,10 @@
         initialOutline={editInitial?.outline ?? null}
         initialRoomName={editInitial?.roomName ?? 'Комната'}
         {committed}
+        features={history.features}
+        {previewIndex}
+        onTogglePreview={handleTreeSelect}
+        onEditFeature={handleEditFeature}
         onCommit={handleCommitSketch}
       />
     {/key}
@@ -408,16 +418,13 @@
           sketch={null}
         />
       </div>
-      <div class="absolute left-3 top-3 z-10">
+      <div class="absolute left-3 top-3 z-10 max-w-[calc(100%-22rem)]">
         <div
-          class="flex flex-col gap-2 rounded-box bg-base-100/95 p-3 shadow-xl backdrop-blur"
+          class="flex flex-col gap-2 rounded-box bg-base-100/95 p-2 shadow-xl backdrop-blur"
         >
-          <p class="text-sm font-semibold" data-testid="step-title">
-            Шаг {STEP_TOTAL} из {STEP_TOTAL} · Просмотр квартиры
-          </p>
-          <p class="text-xs opacity-70" data-testid="viewer-summary">
+          <span class="text-xs opacity-70">
             Этапов закоммичено: {history.features.length}. Свободная камера.
-          </p>
+          </span>
           <button
             class="btn btn-sm"
             data-testid="viewer-back"
@@ -442,8 +449,6 @@
         ? preview.conflicts.length
         : 0}
       stage={screen}
-      stepNumber={stepNumber(screen)}
-      stepTotal={STEP_TOTAL}
       draftCount={history.draft.length}
       draftErrors={preview.errors}
       {liveConflicts}
@@ -452,13 +457,12 @@
       onError={(m) => (message = m)}
       onCommit={handleCommitStage}
       onDiscard={handleDiscard}
-      onSkip={handleSkip}
       onToViewer={handleToViewer}
       onSuggestElec={handleSuggestElec}
       onSuggestLights={handleSuggestLights}
       onTogglePreview={handleTreeSelect}
+      onEditFeature={handleEditFeature}
       onBackToHead={handleBackToHead}
-      onEditLayout={handleEditLayout}
       onEditStage={handleEditStage}
       onDeleteWall={handleDeleteWall}
     />

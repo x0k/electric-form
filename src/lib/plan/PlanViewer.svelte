@@ -21,6 +21,7 @@
   import { snapPlanPoint, lockToAxis } from './viewport';
   import { BASE_GRID_MM, axisAngleClean, type Vec2 } from './geometry';
   import type { PlaceHit } from './placing';
+  import { boxResizeGeom, spanResizeGeom, type ResizeEdge } from './placing';
 
   /** Спецификация госта размещения: слой + габариты-превью, мм. */
   export interface PlaceToolSpec {
@@ -112,10 +113,17 @@
     placeTool?: PlaceToolSpec | null;
     /** Id сущностей текущего этапа — их можно таскать мышью. */
     draggableIds?: string[];
+    /**
+     * Гизмо ресайза: id + разрешённые края (проёмы/навесные — start/end,
+     * боксы — e/w/n/s; угловые и боковые якоря сюда не попадают).
+     */
+    resizeSpecs?: { id: string; edges: ResizeEdge[] }[];
     /** Клик-подтверждение размещения (план уже со снаппингом 1 см). */
     onPlace?: (hit: PlaceHit) => void;
     /** Финал перетаскивания: гост уже погашен, меш не двигался. */
     onObjectMove?: (id: string, hit: PlaceHit) => void;
+    /** Финал ресайза гизмо: сырая точка + тянущийся край. */
+    onResizeObject?: (id: string, hit: PlaceHit, edge: ResizeEdge) => void;
     /** Esc в режиме инструмента/перетаскивания. */
     onToolCancel?: () => void;
   }
@@ -145,8 +153,10 @@
     reframeNonce = 0,
     placeTool = null,
     draggableIds = [],
+    resizeSpecs = [],
     onPlace,
     onObjectMove,
+    onResizeObject,
     onToolCancel,
   }: Props = $props();
 
@@ -168,10 +178,13 @@
   const RUBBER_LOCK_COLOR = 0x16a34a;
   const RUBBER_DOT_COLOR = 0xea580c;
   const HANDLE_RADIUS_M = 0.045;
+  /** Узлы скетча — заметно меньше ручек гизмо, грани и так тонкие (1px). */
+  const SKETCH_HANDLE_RADIUS_M = 0.028;
   const RUBBER_DOT_RADIUS_M = 0.03;
   /** Порог попадания в грань при клике по самой линии, м. */
   const SEG_PICK_THRESHOLD_M = 0.06;
   const DRAG_PX_THRESHOLD = 4;
+  const RESIZE_COLOR = 0xea580c;
 
   let container: HTMLDivElement | null = null;
   let canvas: HTMLCanvasElement | null = null;
@@ -196,6 +209,8 @@
   let segmentLines: THREE.Line[] = [];
   /** Спрайты значков ограничений (кликабельны для правки). */
   let badgeSprites: THREE.Sprite[] = [];
+  /** Таблички длин граней без driving-размера (клик — туда же, в редактор). */
+  let lengthSprites: THREE.Sprite[] = [];
   let byEntity = new Map<string, THREE.Object3D[]>();
   let raf = 0;
   let resizeObserver: ResizeObserver | null = null;
@@ -211,6 +226,8 @@
   let gizmoKey = $state('');
   /** Отрендеренные значки ограничений (для кликов по ним). */
   let badgeCount = $state(0);
+  /** Отрендеренные таблички длин граней. */
+  let lengthCount = $state(0);
   /** Стены, погашенные углом изометрии (ближний угол). */
   let fadedIds: string[] = $state([]);
 
@@ -255,6 +272,21 @@
   let objDragId: string | null = null;
   let objDragGrab: Vec2 | null = null;
   let objDragHit: PlaceHit | null = null;
+  /** Ручки гизмо ресайза выбранных объектов. */
+  let resizeHandles: THREE.Mesh[] = [];
+  let resizeGroup: THREE.Group | null = null;
+  /** Ресайз жестом: id + тянущийся край. */
+  let resizeId: string | null = null;
+  let resizeEdge: ResizeEdge | null = null;
+  /** Высота плоскости ресайза, м (ручки парят — дроп без параллакса). */
+  let resizePlaneY: number | null = null;
+  /** Базовые габариты госта ресайза (масштабируем, не перестраиваем). */
+  let resizeBase: { wM: number; dM: number; angle: number; yM: number } | null =
+    null;
+  /** Ручки `id:край` для e2e; '' — гизмо скрыто. */
+  let resizeKey = $state('');
+  /** Экранные позиции ручек (доли канваса) для e2e-драга. */
+  let handlesAttr = $state('');
   const GHOST_COLOR = 0x16a34a;
   /** Высота подвеса госта света — как у рендера светильников. */
   const LIGHT_GHOST_Y_M = 2.6;
@@ -388,6 +420,7 @@
       controls?.dispose();
       disposeContent();
       disposeSketch();
+      disposeResizeHandles();
       disposeGrid();
       if (rubberGroup && threeScene) {
         threeScene.remove(rubberGroup);
@@ -451,6 +484,15 @@
   $effect(() => {
     if (!ready) return;
     applyHighlight(selectedIds, hoveredId);
+  });
+
+  // Гизмо ресайза следит за выбором без полного ребилда сцены.
+  $effect(() => {
+    void scene;
+    void selectedIds;
+    void resizeSpecs;
+    if (!ready) return;
+    rebuildResizeHandles();
   });
 
   // Резинка следит за концом цепочки без полного ребилда оверлея.
@@ -562,6 +604,7 @@
     disposeContent();
     // Сцена сменилась — жест прерван, гост прячем (спецификация жива).
     cancelObjDrag();
+    disposeResizeHandles();
     hideGhost();
     // Карта подсветки сброшена — старые id скетча больше не валидны.
     indexedSketchIds = [];
@@ -761,9 +804,11 @@
     sketchHandles = [];
     segmentLines = [];
     badgeSprites = [];
+    lengthSprites = [];
     if (!sketch) {
       gizmoKey = '0:0';
       badgeCount = 0;
+      lengthCount = 0;
       return;
     }
     sketchGroup = new THREE.Group();
@@ -793,7 +838,7 @@
       track(seg.id, line);
     }
 
-    const handleGeo = new THREE.SphereGeometry(HANDLE_RADIUS_M, 16, 12);
+    const handleGeo = new THREE.SphereGeometry(SKETCH_HANDLE_RADIUS_M, 16, 12);
     for (const p of Object.values(sketch.points)) {
       const mat = new THREE.MeshStandardMaterial({
         color: SKETCH_POINT_COLOR,
@@ -817,7 +862,13 @@
     gizmoKey = `${sketchHandles.length}:${segmentLines.length}`;
 
     // Значки ограничений на геометрии (как глифы в Sketcher).
-    for (const badge of sketchBadges(sketch)) {
+    const badges = sketchBadges(sketch);
+    const driving = new Set(
+      badges
+        .filter((b) => b.labels.some((l) => /^\d+$/.test(l)))
+        .map((b) => b.segment)
+    );
+    for (const badge of badges) {
       const dim = badge.labels.some((l) => /^\d+$/.test(l));
       const sprite = makeBadgeSprite(
         badge.labels.join('·'),
@@ -829,6 +880,31 @@
       badgeSprites.push(sprite);
     }
     badgeCount = badgeSprites.length;
+
+    // Длина каждой грани без driving-размера — сразу на канвасе
+    // (серая табличка чуть в стороне от середины; клик — в редактор).
+    for (const seg of sketch.segments) {
+      if (driving.has(seg.id)) continue;
+      const a = sketch.points[seg.a];
+      const b = sketch.points[seg.b];
+      if (!a || !b) continue;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const len = Math.hypot(dx, dy);
+      if (len < 1e-9) continue;
+      const sprite = makeBadgeSprite(String(Math.round(len)), 'length');
+      const off = 150;
+      sprite.position.set(
+        ((a.x + b.x) / 2 + (-dy / len) * off) * K,
+        0.06,
+        -((a.y + b.y) / 2 + (dx / len) * off) * K
+      );
+      sprite.scale.set(0.24, 0.12, 1);
+      sprite.userData.badgeFor = seg.id;
+      sketchGroup.add(sprite);
+      lengthSprites.push(sprite);
+    }
+    lengthCount = lengthSprites.length;
 
     threeScene.add(sketchGroup);
   }
@@ -1007,6 +1083,286 @@
     });
   }
 
+  /** Угол объекта из сцены (для госта ресайза). */
+  function resizeSceneAngle(id: string): number | null {
+    const o = (scene.openings ?? []).find((x) => x.id === id);
+    if (o) return o.angleRad;
+    const f = (scene.floorObjects ?? []).find((x) => x.id === id);
+    if (f) return f.angleRad;
+    const m = (scene.wallObjects ?? []).find((x) => x.id === id);
+    if (m) return m.angleRad;
+    return null;
+  }
+
+  /** Центр объекта из сцены (для госта ресайза). */
+  function resizeSceneCenter(id: string): Vec2 | null {
+    const o = (scene.openings ?? []).find((x) => x.id === id);
+    if (o) return { x: o.cxMm, y: o.cyMm };
+    const f = (scene.floorObjects ?? []).find((x) => x.id === id);
+    if (f) return { x: f.cxMm, y: f.cyMm };
+    const m = (scene.wallObjects ?? []).find((x) => x.id === id);
+    if (m) return { x: m.xMm, y: m.yMm };
+    return null;
+  }
+
+  /** Спецификация ручки гизмо: позиция в мм плана + высота, м. */
+  interface ResizeHandleSpec {
+    id: string;
+    edge: ResizeEdge;
+    x: number;
+    y: number;
+    yM: number;
+  }
+
+  /** Ручки выбранных объектов строго по разрешённым краям спеки. */
+  function resizeHandleSpecs(): ResizeHandleSpec[] {
+    const specs = new Map(resizeSpecs.map((s) => [s.id, new Set(s.edges)]));
+    const out: ResizeHandleSpec[] = [];
+    for (const id of selectedIds) {
+      const edges = specs.get(id);
+      if (!edges) continue;
+      const o = (scene.openings ?? []).find((x) => x.id === id);
+      if (o) {
+        const midYM = (o.sillMm + o.heightMm / 2) * K;
+        if (edges.has('start'))
+          out.push({ id, edge: 'start', x: o.p0.x, y: o.p0.y, yM: midYM });
+        if (edges.has('end'))
+          out.push({ id, edge: 'end', x: o.p1.x, y: o.p1.y, yM: midYM });
+        continue;
+      }
+      const f = (scene.floorObjects ?? []).find((x) => x.id === id);
+      if (f) {
+        const c = Math.cos(f.angleRad);
+        const s = Math.sin(f.angleRad);
+        const yM = f.hMm * K + 0.03;
+        const put = (edge: ResizeEdge, su: number, sv: number) => {
+          if (!edges.has(edge)) return;
+          out.push({
+            id,
+            edge,
+            x: f.cxMm + (c * su * f.wMm + s * sv * f.dMm) / 2,
+            y: f.cyMm + (s * su * f.wMm + -c * sv * f.dMm) / 2,
+            yM,
+          });
+        };
+        // Локальные оси бокса: uw=(c,s), vw=(s,-c) — как в placing.boxFrame.
+        put('e', 1, 0);
+        put('w', -1, 0);
+        put('n', 0, 1);
+        put('s', 0, -1);
+        continue;
+      }
+      const m = (scene.wallObjects ?? []).find((x) => x.id === id);
+      if (m) {
+        const dx = Math.cos(m.angleRad);
+        const dy = Math.sin(m.angleRad);
+        const yM = (m.zMm + m.hMm / 2) * K;
+        if (edges.has('start'))
+          out.push({
+            id,
+            edge: 'start',
+            x: m.xMm - (dx * m.wMm) / 2,
+            y: m.yMm - (dy * m.wMm) / 2,
+            yM,
+          });
+        if (edges.has('end'))
+          out.push({
+            id,
+            edge: 'end',
+            x: m.xMm + (dx * m.wMm) / 2,
+            y: m.yMm + (dy * m.wMm) / 2,
+            yM,
+          });
+      }
+    }
+    return out;
+  }
+
+  function rebuildResizeHandles() {
+    if (!threeScene) return;
+    disposeResizeHandles();
+    const specs = resizeHandleSpecs();
+    resizeHandles = [];
+    if (specs.length === 0) {
+      resizeKey = '';
+      handlesAttr = '';
+      return;
+    }
+    resizeGroup = new THREE.Group();
+    const geo = new THREE.SphereGeometry(HANDLE_RADIUS_M, 12, 8);
+    const parts: string[] = [];
+    for (const s of specs) {
+      const mat = new THREE.MeshBasicMaterial({
+        color: RESIZE_COLOR,
+        depthTest: false,
+        transparent: true,
+      });
+      const mesh = new THREE.Mesh(geo.clone(), mat);
+      mesh.renderOrder = 1002;
+      mesh.position.set(s.x * K, s.yM, -s.y * K);
+      mesh.userData.resizeId = s.id;
+      mesh.userData.resizeEdge = s.edge;
+      resizeGroup.add(mesh);
+      resizeHandles.push(mesh);
+      const scr = toScreen(s.x * K, s.yM, -s.y * K);
+      if (scr && canvas) {
+        const r = canvas.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0) {
+          parts.push(
+            `${s.id}:${s.edge}:${((scr.x - r.left) / r.width).toFixed(3)},${((scr.y - r.top) / r.height).toFixed(3)}`
+          );
+        }
+      }
+    }
+    threeScene.add(resizeGroup);
+    resizeKey = specs.map((s) => `${s.id}:${s.edge}`).join(' ');
+    handlesAttr = parts.join(' ');
+  }
+
+  function cancelResizeDrag() {
+    resizeId = null;
+    resizeEdge = null;
+    resizePlaneY = null;
+    resizeBase = null;
+    if (controls) controls.enabled = true;
+    if (canvas) canvas.style.cursor = '';
+  }
+
+  function disposeResizeHandles() {
+    cancelResizeDrag();
+    if (!threeScene || !resizeGroup) {
+      resizeGroup = null;
+      return;
+    }
+    threeScene.remove(resizeGroup);
+    resizeGroup.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (mesh.isMesh) {
+        mesh.geometry.dispose();
+        (mesh.material as THREE.Material).dispose();
+      }
+    });
+    resizeGroup = null;
+    resizeHandles = [];
+  }
+
+  /** Попадание в ручку гизмо ресайза (с высотой плоскости жеста). */
+  function resizeAt(
+    ndc: THREE.Vector2
+  ): { id: string; edge: ResizeEdge; yM: number } | null {
+    if (resizeHandles.length === 0) return null;
+    const ray = makeRay(ndc);
+    if (!ray) return null;
+    const hits = ray.intersectObjects(resizeHandles, false);
+    const obj = hits[0]?.object as THREE.Mesh | undefined;
+    const u = obj?.userData;
+    if (!u?.resizeId || !u?.resizeEdge || !obj) return null;
+    return {
+      id: u.resizeId as string,
+      edge: u.resizeEdge as ResizeEdge,
+      yM: obj.position.y,
+    };
+  }
+
+  /** Луч в точку горизонтальной плоскости на высоте ручки, мм плана. */
+  function planeHitAt(ndc: THREE.Vector2, yM: number): Vec2 | null {
+    const ray = makeRay(ndc);
+    if (!ray) return null;
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -yM);
+    const out = new THREE.Vector3();
+    if (!ray.ray.intersectPlane(plane, out)) return null;
+    return { x: out.x / K, y: -out.z / K };
+  }
+
+  /**
+   * Превью ресайза из данных сцены (та же математика, что в placing:
+   * гост показывает ровно то, что применится).
+   */
+  function resizePreviewGeom(
+    id: string,
+    raw: Vec2
+  ): { center: Vec2; wMm: number; dMm: number | null; angle: number } | null {
+    const o = (scene.openings ?? []).find((x) => x.id === id);
+    if (o && (resizeEdge === 'start' || resizeEdge === 'end')) {
+      const dx = o.p1.x - o.p0.x;
+      const dy = o.p1.y - o.p0.y;
+      const len = Math.hypot(dx, dy);
+      if (len < 1e-9) return null;
+      const ux = dx / len;
+      const uy = dy / len;
+      const along = (raw.x - o.p0.x) * ux + (raw.y - o.p0.y) * uy;
+      const g = spanResizeGeom(0, o.widthMm, along, resizeEdge);
+      const fixed = resizeEdge === 'end' ? o.p0 : o.p1;
+      const move =
+        resizeEdge === 'end'
+          ? { x: o.p0.x + ux * g.widthMm, y: o.p0.y + uy * g.widthMm }
+          : { x: o.p0.x + ux * g.offsetMm, y: o.p0.y + uy * g.offsetMm };
+      return {
+        center: { x: (fixed.x + move.x) / 2, y: (fixed.y + move.y) / 2 },
+        wMm: g.widthMm,
+        dMm: null,
+        angle: o.angleRad,
+      };
+    }
+    const f = (scene.floorObjects ?? []).find((x) => x.id === id);
+    if (
+      f &&
+      (resizeEdge === 'e' ||
+        resizeEdge === 'w' ||
+        resizeEdge === 'n' ||
+        resizeEdge === 's')
+    ) {
+      const g = boxResizeGeom(
+        {
+          center: { x: f.cxMm, y: f.cyMm },
+          angleRad: f.angleRad,
+          wMm: f.wMm,
+          dMm: f.dMm,
+        },
+        raw,
+        resizeEdge
+      );
+      return { center: g.center, wMm: g.wMm, dMm: g.dMm, angle: f.angleRad };
+    }
+    const m = (scene.wallObjects ?? []).find((x) => x.id === id);
+    if (m && (resizeEdge === 'start' || resizeEdge === 'end')) {
+      const dx = Math.cos(m.angleRad);
+      const dy = Math.sin(m.angleRad);
+      const sx = m.xMm - (dx * m.wMm) / 2;
+      const sy = m.yMm - (dy * m.wMm) / 2;
+      const along = (raw.x - sx) * dx + (raw.y - sy) * dy;
+      const g = spanResizeGeom(0, m.wMm, along, resizeEdge);
+      const ex = sx + dx * m.wMm;
+      const ey = sy + dy * m.wMm;
+      const move =
+        resizeEdge === 'end'
+          ? { x: sx + dx * g.widthMm, y: sy + dy * g.widthMm }
+          : { x: sx + dx * g.offsetMm, y: sy + dy * g.offsetMm };
+      const fixed = resizeEdge === 'end' ? { x: sx, y: sy } : { x: ex, y: ey };
+      return {
+        center: { x: (fixed.x + move.x) / 2, y: (fixed.y + move.y) / 2 },
+        wMm: g.widthMm,
+        dMm: null,
+        angle: m.angleRad,
+      };
+    }
+    return null;
+  }
+
+  /** Гост ресайза: бокс базовых габаритов тянем scale + центр. */
+  function updateResizeGhost(center: Vec2, wMm: number, dMm: number | null) {
+    if (!ghost || !resizeBase) return;
+    ghost.position.set(center.x * K, resizeBase.yM, -center.y * K);
+    ghost.rotation.set(0, resizeBase.angle, 0);
+    ghost.scale.set(
+      Math.max(wMm * K, 0.02) / resizeBase.wM,
+      1,
+      dMm === null ? 1 : Math.max(dMm * K, 0.02) / resizeBase.dM
+    );
+    ghost.visible = true;
+    ghostKey = `${Math.round(center.x)},${Math.round(center.y)}`;
+  }
+
   function disposeGrid() {
     if (!threeScene || !gridGroup) {
       gridGroup = null;
@@ -1063,8 +1419,12 @@
   }
 
   /** Табличка значка ограничения — CanvasTexture-спрайт.
-   * Driving-размеры (длина) красные, геометрия (H/V) синяя, как в Sketcher. */
-  function makeBadgeSprite(text: string, tone: 'geom' | 'dim'): THREE.Sprite {
+   * Driving-размеры (длина) красные, геометрия (H/V) синяя, как в Sketcher,
+   * сырые длины граней — серые. */
+  function makeBadgeSprite(
+    text: string,
+    tone: 'geom' | 'dim' | 'length'
+  ): THREE.Sprite {
     const c = document.createElement('canvas');
     c.width = 160;
     c.height = 80;
@@ -1075,15 +1435,16 @@
     const sprite = new THREE.Sprite(mat);
     const ctx = c.getContext('2d');
     const dim = tone === 'dim';
+    const len = tone === 'length';
     if (ctx) {
       ctx.fillStyle = 'rgba(255,255,255,0.95)';
-      ctx.strokeStyle = dim ? '#dc2626' : '#1d4ed8';
+      ctx.strokeStyle = dim ? '#dc2626' : len ? '#78716c' : '#1d4ed8';
       ctx.lineWidth = 4;
       ctx.beginPath();
       ctx.roundRect(4, 4, 152, 72, 18);
       ctx.fill();
       ctx.stroke();
-      ctx.fillStyle = dim ? '#7f1d1d' : '#1e3a8a';
+      ctx.fillStyle = dim ? '#7f1d1d' : len ? '#44403c' : '#1e3a8a';
       ctx.font = 'bold 38px system-ui, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -1565,10 +1926,14 @@
   }
 
   function badgeAt(ndc: THREE.Vector2): string | null {
-    if (badgeSprites.length === 0) return null;
+    if (badgeSprites.length === 0 && lengthSprites.length === 0) return null;
     const ray = makeRay(ndc);
     if (!ray) return null;
-    const hits = ray.intersectObjects(badgeSprites, false);
+    // Значки ограничений первичнее табличек длин при наложении.
+    const hits = ray.intersectObjects(
+      [...badgeSprites, ...lengthSprites],
+      false
+    );
     return (hits[0]?.object.userData.badgeFor as string | undefined) ?? null;
   }
 
@@ -1603,6 +1968,43 @@
     if (!canvas) return;
     const ndc = ndcFromEvent(e);
     if (!ndc) return;
+    // Ручка гизмо ресайза — первичнее всего остального.
+    if (e.button === 0) {
+      const rz = resizeAt(ndc);
+      if (rz) {
+        resizeId = rz.id;
+        resizeEdge = rz.edge;
+        resizePlaneY = rz.yM;
+        dragging = false;
+        if (controls) controls.enabled = false;
+        const dims = dragGhostDims(rz.id);
+        if (dims && threeScene) {
+          ensureGhost(`resize:${rz.id}`, () =>
+            ghostMesh(dims.kind, dims.sx, dims.sy, dims.sz)
+          );
+          resizeBase = {
+            wM: dims.sx,
+            dM: dims.sz,
+            angle: resizeSceneAngle(rz.id) ?? 0,
+            yM: dims.yM,
+          };
+          if (ghost) {
+            // Переиспользованный гост: сбросить прошлый scale.
+            ghost.scale.set(1, 1, 1);
+            ghost.rotation.set(0, resizeBase.angle, 0);
+            const c = resizeSceneCenter(rz.id);
+            if (c) ghost.position.set(c.x * K, resizeBase.yM, -c.y * K);
+            ghost.visible = false;
+          }
+          ghostKey = '';
+          ghostWall = '';
+        } else {
+          resizeBase = null;
+        }
+        canvas.setPointerCapture?.(e.pointerId);
+        return;
+      }
+    }
     const pid = handleAt(ndc);
     if (pid) {
       dragPointId = pid;
@@ -1718,6 +2120,28 @@
 
   function onPointerMove(e: PointerEvent) {
     if (!canvas) return;
+    // Ресайз гизмо: гост тянется за краем, операция — только на drop.
+    // Луч кладём на высоту ручки, а не на пол — иначе параллакс врёт.
+    if (resizeId && resizeEdge && resizePlaneY !== null) {
+      if (!downPx) return;
+      const dist = Math.hypot(e.clientX - downPx.x, e.clientY - downPx.y);
+      if (!dragging && dist < DRAG_PX_THRESHOLD) return;
+      if (!dragging) {
+        dragging = true;
+        suppressClick = true;
+        if (controls) controls.enabled = false;
+        canvas.style.cursor = 'ew-resize';
+        if (rubberGroup) rubberGroup.visible = false;
+      }
+      const ndc = ndcFromEvent(e);
+      if (!ndc) return;
+      const raw = planeHitAt(ndc, resizePlaneY);
+      if (!raw) return;
+      const g = resizePreviewGeom(resizeId, raw);
+      if (!g) return;
+      updateResizeGhost(g.center, g.wMm, g.dMm);
+      return;
+    }
     // Перетаскивание объекта: гост едет за курсором с вычетом захвата.
     if (objDragId) {
       if (!downPx) return;
@@ -1820,11 +2244,19 @@
       // Hover: preselect, курсор и резинка (только без зажатой кнопки).
       if (
         e.buttons !== 0 ||
-        (sketchHandles.length === 0 && segmentLines.length === 0 && !rubberFrom)
+        (sketchHandles.length === 0 &&
+          segmentLines.length === 0 &&
+          resizeHandles.length === 0 &&
+          !rubberFrom)
       )
         return;
       const ndc = ndcFromEvent(e);
       if (!ndc) return;
+      // Ручка ресайза — первичнее хендлов скетча.
+      if (resizeAt(ndc)) {
+        canvas.style.cursor = 'ew-resize';
+        return;
+      }
       // Хендлы скетча — первичны (гизмо поверх модели, даже под стенами).
       const hid = handleAt(ndc);
       const gid = hid ? null : segmentAt(ndc);
@@ -1946,6 +2378,32 @@
   }
 
   function onPointerUp(e: PointerEvent) {
+    // Финал ресайза гизмо: тянули — коммитим операцию, клик — выбор.
+    if (resizeId && resizeEdge) {
+      const id = resizeId;
+      const edge = resizeEdge;
+      const yM = resizePlaneY;
+      const wasDragging = dragging;
+      if (downPx) {
+        lastPointerTravel = Math.hypot(
+          e.clientX - downPx.x,
+          e.clientY - downPx.y
+        );
+      }
+      const ndc = ndcFromEvent(e);
+      const raw = ndc && yM !== null ? planeHitAt(ndc, yM) : null;
+      cancelResizeDrag();
+      hideGhost();
+      // Click после жеста гасим всегда, выбор делаем сами.
+      suppressClick = true;
+      if (wasDragging && raw) {
+        onResizeObject?.(id, { plan: raw, raw }, edge);
+      } else {
+        onSelect?.(id);
+      }
+      downPx = null;
+      return;
+    }
     // Финал перетаскивания объекта: гост уже погашен, сцена
     // перестроится сама, если операция staged (иначе ничего не сдвинулось).
     if (objDragId) {
@@ -1987,6 +2445,7 @@
 
   function onPointerCancel(e: PointerEvent) {
     if (objDragId) cancelObjDrag();
+    cancelResizeDrag();
     finishDrag(e, false);
   }
 
@@ -1995,6 +2454,7 @@
     hideRubber();
     hideGhost();
     if (objDragId) cancelObjDrag();
+    cancelResizeDrag();
     applyHighlight(selectedIds, null);
     if (canvas) canvas.style.cursor = '';
   }
@@ -2044,8 +2504,11 @@
   data-sketch-points={sketchPointCount}
   data-sketch-segments={sketchSegmentCount}
   data-gizmo={gizmoKey}
+  data-resize={resizeKey}
+  data-handles={handlesAttr}
   data-badges={sketchBadgeCount}
   data-sprites={badgeCount}
+  data-lengths={lengthCount}
   data-pts={sketch
     ? Object.values(sketch.points)
         .sort((a, b) => (a.id < b.id ? -1 : 1))

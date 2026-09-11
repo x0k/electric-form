@@ -1,18 +1,14 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import PlanViewer, { type PlanClickInfo } from './PlanViewer.svelte';
-  import SketchPanel from './SketchPanel.svelte';
+  import FeatureTreePanel, { type DraftStage } from './FeatureTreePanel.svelte';
+  import type { Feature } from './history';
+  import { stageLabel } from './history';
   import { ensureGcsLoaded, isGcsLoaded } from './gcs';
   import { modelToScene } from './render';
   import { createEmptyApartment } from './model';
   import { sketchToLayoutOps } from './layout';
-  import {
-    PenLine,
-    MousePointer2,
-    Ruler,
-    Layers,
-    Magnet,
-  } from '@lucide/svelte';
+  import { PenLine, Ruler, Magnet } from '@lucide/svelte';
   import {
     createSketch,
     isSketchClosed,
@@ -46,11 +42,23 @@
     initialOutline: Vec2[] | null;
     initialRoomName: string;
     committed: boolean;
+    features: Feature[];
+    previewIndex: number | null;
+    onTogglePreview: (index: number) => void;
+    onEditFeature: (index: number) => void;
     onCommit: (payload: { ops: Operation[]; roomName: string }) => void;
   }
 
-  let { initialOutline, initialRoomName, committed, onCommit }: Props =
-    $props();
+  let {
+    initialOutline,
+    initialRoomName,
+    committed,
+    features,
+    previewIndex,
+    onTogglePreview,
+    onEditFeature,
+    onCommit,
+  }: Props = $props();
 
   function loadInitial(): {
     sketch: Sketch;
@@ -81,7 +89,8 @@
   const boot = loadInitial();
   const emptyScene = modelToScene(createEmptyApartment());
 
-  /** Режим инструмента: draw — клики строят, select — только выбирают. */
+  /** Режим инструмента: draw — клики строят, select — выбор по умолчанию,
+   * когда никакой другой инструмент не взят (отдельной кнопки нет). */
   type ToolMode = 'draw' | 'select';
   let toolMode: ToolMode = $state('draw');
   /** Численный решатель готов (WASM грузится асинхронно при монтировании). */
@@ -110,6 +119,12 @@
   /** Активный штрих и его конец. null — штриха нет, пустой клик начнёт новый. */
   let activeStroke: number | null = $state(null);
   let chainEnd: string | null = $state(null);
+  /**
+   * Первая точка штриха, созданная с нуля и пока ни с чем не соединённая.
+   * Отмена штриха (Esc/правая/выкл инструмента) её удаляет — висячего
+   * мусора в скетче не остаётся.
+   */
+  let pendingFreshPoint: string | null = $state(null);
   let snapStepMm: number = $state(10);
   let showGrid = $state(true);
   /** Авто-фиксация H/V при рисовании (как в Sketcher, отключаемая). */
@@ -137,6 +152,45 @@
 
   function say(text: string | null) {
     message = text;
+  }
+
+  /** Этап в работе для дерева: до первого commit — черновик планировки. */
+  const draftStage = $derived.by((): DraftStage | null =>
+    committed ? null : { index: 0, label: stageLabel('layout') }
+  );
+
+  /** Полилиния — тоггл: повторный клик возвращает в выбор по умолчанию. */
+  function toggleDrawTool() {
+    if (toolMode === 'draw') {
+      toolMode = 'select';
+      dropFreshPoint();
+      activeStroke = null;
+      chainEnd = null;
+      say(null);
+    } else {
+      // Взаимоисключение с constraints: липкий инструмент снимается.
+      constraintTool = null;
+      coincidentFirst = null;
+      toolMode = 'draw';
+      say(null);
+    }
+  }
+
+  /**
+   * Убрать висячее начало отменённого штриха: точка, созданная с нуля
+   * и так ни с чем не соединённая. Соединённые точки не трогаем.
+   */
+  function dropFreshPoint() {
+    const pid = pendingFreshPoint;
+    pendingFreshPoint = null;
+    if (!pid || !sketch.points[pid]) return;
+    const touched = sketch.segments.some((s) => s.a === pid || s.b === pid);
+    if (touched) return;
+    const r = sketchDeletePoint(sketch, pid);
+    if (r.ok) {
+      sketch = r.value;
+      selectedIds = selectedIds.filter((id) => id !== pid);
+    }
   }
 
   function handlePlanClick(plan: Vec2, info?: PlanClickInfo) {
@@ -179,6 +233,7 @@
           sketch = r.value;
           activeStroke = null;
           chainEnd = null;
+          pendingFreshPoint = null;
           selectedIds = [];
           say(null);
           sketch = maybeAutoConstrain(sketch, closeId, {
@@ -250,6 +305,8 @@
     pointSeq += 1;
     const pid = `p${pointSeq}`;
     if (chainEnd === null) {
+      // Прошлый штрих могли парковать со висячим началом — чистим.
+      dropFreshPoint();
       strokeSeq += 1;
       const st = strokeSeq;
       const r = sketchAddPoint(sketch, pid, plan);
@@ -262,6 +319,7 @@
       sketch = r.value;
       activeStroke = st;
       chainEnd = pid;
+      pendingFreshPoint = pid;
       selectedIds = [pid];
       say(null);
       return;
@@ -372,6 +430,7 @@
     if (!chainEnd || !sketch.points[chainEnd]) {
       chainEnd = null;
       activeStroke = null;
+      pendingFreshPoint = null;
     }
   }
 
@@ -416,11 +475,17 @@
     return tool === 'axis' ? 'ось' : tool === 'length' ? 'длина' : 'совпадение';
   }
 
-  /** Взять/снять инструмент ограничения (залипает, как в Sketcher). */
+  /** Взять/снять инструмент ограничения (взаимоисключение с полилинией). */
   function toggleConstraintTool(tool: Exclude<ConstraintTool, null>) {
     constraintTool = constraintTool === tool ? null : tool;
     coincidentFirst = null;
     if (constraintTool) {
+      // Полилиния паркуется: висячее начало без граней — в корзину,
+      // остальная геометрия цела, продолжить можно позже.
+      dropFreshPoint();
+      toolMode = 'select';
+      activeStroke = null;
+      chainEnd = null;
       say(
         `Инструмент ${constraintToolLabel(tool)}: ` +
           (tool === 'coincident' ? 'кликайте две точки.' : 'кликайте грани.')
@@ -607,6 +672,8 @@
   function finishStroke() {
     activeStroke = null;
     chainEnd = null;
+    // Явный конец штриха — точка остаётся осознанно, не мусор.
+    pendingFreshPoint = null;
     say('Штрих завершён — клик с свободного места начнёт новый.');
   }
 
@@ -642,7 +709,9 @@
     }
     if (toolMode === 'draw') {
       toolMode = 'select';
-      // Штрих остаётся как есть; продолжить — клик по его концу в контуре.
+      // Висячее начало без граней — в корзину, остальное остаётся;
+      // продолжить — клик по концу штриха в контуре.
+      dropFreshPoint();
       activeStroke = null;
       chainEnd = null;
       say('Полилиния завершена — режим выбора.');
@@ -668,6 +737,10 @@
       }
       if (toolMode === 'draw') finishPolyline();
       else selectedIds = [];
+      return;
+    }
+    if (e.key === 'p' || e.key === 'P' || e.key === 'ф' || e.key === 'Ф') {
+      toggleDrawTool();
       return;
     }
     if (e.key !== 'Delete' && e.key !== 'Backspace') return;
@@ -712,21 +785,12 @@
           class="btn btn-sm join-item"
           class:btn-primary={toolMode === 'draw'}
           data-testid="tool-draw"
-          title="Полилиния (P)"
+          title="Полилиния (P) — повторный клик возвращает в выбор"
           aria-label="Инструмент polyline"
-          onclick={() => (toolMode = 'draw')}
+          aria-pressed={toolMode === 'draw'}
+          onclick={toggleDrawTool}
         >
           <PenLine size={16} />
-        </button>
-        <button
-          class="btn btn-sm join-item"
-          class:btn-primary={toolMode === 'select'}
-          data-testid="tool-select"
-          title="Выбор (V)"
-          aria-label="Инструмент выбора"
-          onclick={() => (toolMode = 'select')}
-        >
-          <MousePointer2 size={16} />
         </button>
       </div>
       {#if constraintTool}
@@ -907,24 +971,25 @@
   </div>
 
   <div
-    class="absolute bottom-3 right-3 top-3 z-10 flex w-72 max-w-[85vw] flex-col gap-3 overflow-y-auto"
+    class="absolute bottom-3 right-3 top-3 z-10 flex w-80 max-w-[85vw] flex-col gap-3 overflow-y-auto"
   >
-    <section
-      class="rounded-box bg-base-200 p-3 text-sm shadow-xl"
-      data-testid="stage-tree"
+    <FeatureTreePanel
+      {features}
+      {previewIndex}
+      {onTogglePreview}
+      {onEditFeature}
+      {draftStage}
     >
-      <h2 class="mb-1 flex items-center gap-1 font-semibold">
-        <Layers size={16} /> Feature Tree
-      </h2>
-      <p>
-        <span class="badge badge-primary badge-sm">#1</span>
-        Планировка помещения — черновик
-      </p>
-    </section>
-    <SketchPanel
-      {committed}
-      commitDisabled={sketch.segments.length === 0}
-      onCommit={handleCommit}
-    />
+      {#snippet footer()}
+        <button
+          class="btn btn-sm btn-primary w-full"
+          data-testid="commit-layout"
+          disabled={sketch.segments.length === 0}
+          onclick={handleCommit}
+        >
+          Продолжить
+        </button>
+      {/snippet}
+    </FeatureTreePanel>
   </div>
 </div>

@@ -23,8 +23,11 @@ import {
 } from './geometry';
 import { hostExists, type ApartmentState, type Room, type Wall } from './model';
 import { validateOpening, type OpeningKind } from './openings';
-import { catalogLabel, findCatalogEntry } from './catalog';
+import { rotatedRect } from './polygon';
+import { catalogLabel, findCatalogEntry, validateDims } from './catalog';
 import {
+  floorAngleRad,
+  floorCenterMm,
   inwardNormalMm,
   isRotationDeg,
   validateFloorAnchor,
@@ -447,6 +450,234 @@ export function moveObject(
   }
 
   return fail(`Объект "${id}" не найден или не двигается мышью.`);
+}
+
+/**
+ * Край гизмо ресайза: start/end — торцы вдоль стены (проёмы, навесные,
+ * ширина напольных у стены), e/w/n/s — стороны бокса в локальных осях.
+ */
+export type ResizeEdge = 'start' | 'end' | 'e' | 'w' | 'n' | 's';
+
+/** Минимальный габарит при ресайзе мышью (точные лимиты — валидаторы). */
+const MIN_RESIZE_MM = 100;
+
+/** Локальный кадр бокса: uw — ось ширины, vw — ось глубины (единичные). */
+function boxFrame(angleRad: number): { uw: Vec2; vw: Vec2 } {
+  return {
+    uw: { x: Math.cos(angleRad), y: Math.sin(angleRad) },
+    vw: { x: Math.sin(angleRad), y: -Math.cos(angleRad) },
+  };
+}
+
+/**
+ * Чистая геометрия ресайза бокса с фиксацией противоположного края.
+ * Та же функция двигает гост вьювера и считает операцию — превью не врёт.
+ */
+export function boxResizeGeom(
+  box: { center: Vec2; angleRad: number; wMm: number; dMm: number },
+  at: Vec2,
+  edge: 'e' | 'w' | 'n' | 's'
+): { center: Vec2; wMm: number; dMm: number } {
+  const { uw, vw } = boxFrame(box.angleRad);
+  const rel = { x: at.x - box.center.x, y: at.y - box.center.y };
+  const u = rel.x * uw.x + rel.y * uw.y;
+  const v = rel.x * vw.x + rel.y * vw.y;
+  let minU = -box.wMm / 2;
+  let maxU = box.wMm / 2;
+  let minV = -box.dMm / 2;
+  let maxV = box.dMm / 2;
+  if (edge === 'e') maxU = Math.max(minU + MIN_RESIZE_MM, snapMm(u));
+  else if (edge === 'w') minU = Math.min(maxU - MIN_RESIZE_MM, snapMm(u));
+  else if (edge === 'n') maxV = Math.max(minV + MIN_RESIZE_MM, snapMm(v));
+  else minV = Math.min(maxV - MIN_RESIZE_MM, snapMm(v));
+  const wMm = maxU - minU;
+  const dMm = maxV - minV;
+  const cu = (minU + maxU) / 2;
+  const cv = (minV + maxV) / 2;
+  return {
+    center: {
+      x: box.center.x + uw.x * cu + vw.x * cv,
+      y: box.center.y + uw.y * cu + vw.y * cv,
+    },
+    wMm,
+    dMm,
+  };
+}
+
+/**
+ * Чистая геометрия ресайза отрезка вдоль оси (проём, ширина навесного):
+ * alongMm — сырая координата курсора от начала отрезка.
+ */
+export function spanResizeGeom(
+  offsetMm: number,
+  widthMm: number,
+  alongMm: number,
+  edge: 'start' | 'end'
+): { offsetMm: number; widthMm: number } {
+  const a = snapMm(alongMm);
+  if (edge === 'end') {
+    return { offsetMm, widthMm: Math.max(MIN_RESIZE_MM, a - offsetMm) };
+  }
+  const end = offsetMm + widthMm;
+  const start = Math.min(a, end - MIN_RESIZE_MM);
+  return { offsetMm: start, widthMm: end - start };
+}
+
+/**
+ * Ресайз объекта гизмо: at — сырая точка плана под курсором, edge —
+ * тянущийся край. Якорь сохраняет тип; противоположный край зафиксирован.
+ * Точные лимиты (каталог, простенки, наложения) проверяют валидаторы.
+ */
+export function resizeObject(
+  state: ApartmentState,
+  id: string,
+  at: Vec2,
+  edge: ResizeEdge
+): PlaceResult {
+  const op = state.openings?.[id];
+  if (op) {
+    if (edge !== 'start' && edge !== 'end') {
+      return fail(`Проём "${id}": тяните за торец вдоль стены.`);
+    }
+    const wall = state.walls[op.wallId];
+    if (!wall) return fail(`Стена "${op.wallId}" не найдена.`);
+    const g = spanResizeGeom(
+      op.offsetMm,
+      op.widthMm,
+      projectAlong(wall, at),
+      edge
+    );
+    const draft = { ...op, offsetMm: g.offsetMm, widthMm: g.widthMm };
+    const err = validateOpening(
+      state.walls,
+      state.openings ?? {},
+      draft,
+      op.id
+    );
+    if (err) return fail(err);
+    return {
+      ok: true,
+      id,
+      op: {
+        type: 'updateOpening',
+        openingId: id,
+        offsetMm: g.offsetMm,
+        widthMm: g.widthMm,
+      },
+    };
+  }
+
+  const fo = state.floorObjects?.[id];
+  if (fo) {
+    const a = fo.anchor;
+    if (a.type === 'corner') {
+      return fail('Угловой якорь меняется только числами в панели.');
+    }
+    if (a.type === 'wall') {
+      // У стены ширина идёт строго вдоль неё: боковой разворот и глубина
+      // гизмо не тянет (глубина — числами в панели).
+      if (a.rotationDeg === 90 || a.rotationDeg === 270) {
+        return fail('Боковой разворот у стены: размеры — числами в панели.');
+      }
+      if (edge !== 'w' && edge !== 'e') {
+        return fail(`Объект "${id}": у стены тяните за боковые стороны.`);
+      }
+    } else if (edge !== 'e' && edge !== 'w' && edge !== 'n' && edge !== 's') {
+      return fail(`Объект "${id}": тяните за сторону бокса.`);
+    }
+    const center = floorCenterMm(state, fo);
+    if (!center) return fail(`Центр объекта "${id}" не выводится.`);
+    const angle = floorAngleRad(state, fo);
+    // К этой точке edge уже проверен под тип якоря выше.
+    const g = boxResizeGeom(
+      { center, angleRad: angle, wMm: fo.wMm, dMm: fo.dMm },
+      at,
+      edge as 'e' | 'w' | 'n' | 's'
+    );
+    const dims = validateDims(fo.kind, g.wMm, g.dMm, fo.hMm);
+    if (dims) return fail(dims);
+    if (a.type === 'room') {
+      const room = state.rooms[a.roomId];
+      if (!room) return fail(`Помещение "${a.roomId}" не найдено.`);
+      const anchor = {
+        ...a,
+        xMm: snapMm(g.center.x),
+        yMm: snapMm(g.center.y),
+      };
+      if (
+        !rotatedRect(g.center, g.wMm, g.dMm, angle).every((p) =>
+          pointInPolygon(p, room.outline)
+        )
+      ) {
+        return fail('Вне помещения — гизмо вышло из комнаты.');
+      }
+      const anchorErr = validateFloorAnchor(state, anchor, g.wMm);
+      if (anchorErr) return fail(anchorErr);
+      return {
+        ok: true,
+        id,
+        op: {
+          type: 'updateFloorObject',
+          objectId: id,
+          anchor,
+          wMm: g.wMm,
+          dMm: g.dMm,
+        },
+      };
+    }
+    // Якорь у стены, ширина строго вдоль неё: пересчёт along/fromWall
+    // из нового центра точен (центр едет только вдоль стены).
+    const wall = state.walls[a.wallId];
+    if (!wall) return fail(`Стена "${a.wallId}" не найдена.`);
+    const alongMm = snapMm(projectAlong(wall, g.center));
+    const depth = depthFromWall(state, wall, g.center);
+    const fromWallMm =
+      depth === null ? a.fromWallMm : snapMm(Math.max(0, depth - g.dMm / 2));
+    const anchor = { ...a, alongMm, fromWallMm };
+    const anchorErr = validateFloorAnchor(state, anchor, g.wMm);
+    if (anchorErr) return fail(anchorErr);
+    return {
+      ok: true,
+      id,
+      op: {
+        type: 'updateFloorObject',
+        objectId: id,
+        anchor,
+        wMm: g.wMm,
+        dMm: g.dMm,
+      },
+    };
+  }
+
+  const wo = state.wallObjects?.[id];
+  if (wo) {
+    if (edge !== 'start' && edge !== 'end') {
+      return fail(`Объект "${id}": тяните за торец вдоль стены.`);
+    }
+    const wall = state.walls[wo.anchor.wallId];
+    if (!wall) return fail(`Стена "${wo.anchor.wallId}" не найдена.`);
+    const g = spanResizeGeom(
+      wo.anchor.alongMm - wo.wMm / 2,
+      wo.wMm,
+      projectAlong(wall, at),
+      edge
+    );
+    const anchor = {
+      ...wo.anchor,
+      alongMm: snapMm(g.offsetMm + g.widthMm / 2),
+    };
+    const dims = validateDims(wo.kind, g.widthMm, wo.depthMm, wo.hMm);
+    if (dims) return fail(dims);
+    const err = validateWallAnchor(state.walls, anchor, g.widthMm);
+    if (err) return fail(err);
+    return {
+      ok: true,
+      id,
+      op: { type: 'updateWallObject', objectId: id, anchor, wMm: g.widthMm },
+    };
+  }
+
+  return fail(`Объект "${id}" не найден или не меняет размеры мышью.`);
 }
 
 /** Высота установки по умолчанию для электрики. */

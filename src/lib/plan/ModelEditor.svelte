@@ -1,7 +1,7 @@
 <script lang="ts">
   import PlanViewer, { type PlaceToolSpec } from './PlanViewer.svelte';
   import EditorToolbar from './EditorToolbar.svelte';
-  import FeatureTreePanel from './FeatureTreePanel.svelte';
+  import FeatureTreePanel, { type DraftStage } from './FeatureTreePanel.svelte';
   import StructurePanel from './StructurePanel.svelte';
   import OpeningsPanel from './OpeningsPanel.svelte';
   import FloorObjectsPanel from './FloorObjectsPanel.svelte';
@@ -26,8 +26,10 @@
     placeLuminaire,
     placeOpening,
     placeWallObject,
+    resizeObject,
     uniqueId,
     type PlaceHit,
+    type ResizeEdge,
   } from './placing';
   import { FLOOR_CATALOG, WALL_CATALOG, findCatalogEntry } from './catalog';
   import { DOOR_LIMITS, WINDOW_LIMITS, type OpeningKind } from './openings';
@@ -54,8 +56,6 @@
     previewFeature: Feature | null;
     previewConflictCount: number;
     stage: StageKind;
-    stepNumber: number;
-    stepTotal: number;
     draftCount: number;
     draftErrors: string[];
     liveConflicts: PlanConflict[];
@@ -64,13 +64,12 @@
     onError: (message: string) => void;
     onCommit: () => void;
     onDiscard: () => void;
-    onSkip: () => void;
     onToViewer: () => void;
     onSuggestElec: () => void;
     onSuggestLights: () => void;
     onTogglePreview: (index: number) => void;
+    onEditFeature: (index: number) => void;
     onBackToHead: () => void;
-    onEditLayout: () => void;
     onEditStage: () => void;
     onDeleteWall: (wallId: string) => void;
   }
@@ -84,8 +83,6 @@
     previewFeature,
     previewConflictCount,
     stage,
-    stepNumber,
-    stepTotal,
     draftCount,
     draftErrors,
     liveConflicts,
@@ -94,19 +91,39 @@
     onError,
     onCommit,
     onDiscard,
-    onSkip,
     onToViewer,
     onSuggestElec,
     onSuggestLights,
     onTogglePreview,
+    onEditFeature,
     onBackToHead,
-    onEditLayout,
     onEditStage,
     onDeleteWall,
   }: Props = $props();
 
   const previewing = $derived(previewIndex !== null);
   const editing = $derived(editingIndex !== null);
+
+  /** Commit — в подвале дерева, скрыт в режиме просмотра. */
+  const commitSpec = $derived.by(() => {
+    if (previewing) return null;
+    return {
+      testId: 'commit-stage',
+      label: 'Продолжить',
+      disabled: draftCount === 0,
+      onCommit,
+    };
+  });
+
+  /**
+   * Текущий этап в работе — строкой «черновик» в дереве.
+   * В просмотре/правке прошлого и при уже закоммиченном этапе скрыта.
+   */
+  const draftStage = $derived.by((): DraftStage | null => {
+    if (previewing || editing) return null;
+    if (features.some((f) => f.stage === stage)) return null;
+    return { index: features.length, label: stageLabel(stage) };
+  });
 
   let cameraMode: EditorCameraMode = $state('iso');
   let isoPreset = $state(0);
@@ -195,6 +212,32 @@
     if (stage === 'wallObjects') return wallObjects.map((o) => o.id);
     if (stage === 'sockets') return elecPoints.map((p) => p.id);
     if (stage === 'lighting') return luminaires.map((l) => l.id);
+    return [];
+  });
+
+  /** Гизмо ресайза: id + разрешённые края из якоря (угловые — без ручек). */
+  const resizeSpecs = $derived.by((): { id: string; edges: ResizeEdge[] }[] => {
+    if (previewing) return [];
+    if (stage === 'openings')
+      return openings.map((o) => ({
+        id: o.id,
+        edges: ['start', 'end'] as ResizeEdge[],
+      }));
+    if (stage === 'floorObjects')
+      return floorObjects.flatMap((o) => {
+        if (o.anchor.type === 'corner') return [];
+        if (o.anchor.type === 'wall') {
+          return o.anchor.rotationDeg === 90 || o.anchor.rotationDeg === 270
+            ? []
+            : [{ id: o.id, edges: ['w', 'e'] as ResizeEdge[] }];
+        }
+        return [{ id: o.id, edges: ['e', 'w', 'n', 's'] as ResizeEdge[] }];
+      });
+    if (stage === 'wallObjects')
+      return wallObjects.map((o) => ({
+        id: o.id,
+        edges: ['start', 'end'] as ResizeEdge[],
+      }));
     return [];
   });
 
@@ -314,6 +357,22 @@
     selectedId = id;
   }
 
+  /** Финал гизмо ресайза: край + точка → операция обновления габаритов. */
+  function handleResize(id: string, hit: PlaceHit, edge: ResizeEdge) {
+    const res = resizeObject(base, id, hit.plan, edge);
+    if (!res.ok) {
+      onError(res.error);
+      return;
+    }
+    const dry = applyOperation(base, res.op);
+    if (!dry.ok) {
+      onError(dry.error.message);
+      return;
+    }
+    onOp(res.op);
+    selectedId = id;
+  }
+
   const HINTS: Record<StageKind, string> = {
     layout: '',
     openings:
@@ -346,9 +405,11 @@
       gridStepMm={100}
       {placeTool}
       {draggableIds}
+      {resizeSpecs}
       onSelect={(id) => (selectedId = id)}
       onPlace={handlePlace}
       onObjectMove={handleMove}
+      onResizeObject={handleResize}
       onToolCancel={() => (toolOn = false)}
     />
   </div>
@@ -357,9 +418,26 @@
     <div
       class="flex flex-col gap-2 rounded-box bg-base-100/95 p-2 shadow-xl backdrop-blur"
     >
-      <p class="text-sm font-semibold" data-testid="step-title">
-        Шаг {stepNumber} из {stepTotal} · {stageLabel(stage)}
-      </p>
+      <div
+        class="flex items-center gap-2"
+        role="toolbar"
+        aria-label="Инструмент"
+      >
+        <button
+          class="btn btn-sm shrink-0"
+          class:btn-primary={toolOn}
+          data-testid="place-toggle"
+          title="Клик по канвасу ставит объект (Esc — выкл)"
+          onclick={() => (toolOn = !toolOn)}
+        >
+          {toolOn ? 'Ставить: вкл' : 'Ставить: выкл'}
+        </button>
+        {#if toolOn}
+          <p class="text-xs opacity-70" data-testid="place-hint">
+            {HINTS[stage]} Снаппинг 1 см.
+          </p>
+        {/if}
+      </div>
       <EditorToolbar
         {cameraMode}
         snapStepMm={10}
@@ -409,23 +487,8 @@
             {/if}
           </span>
         </div>
-        <div class="flex items-center gap-2 text-xs">
-          <button
-            class="btn btn-xs"
-            data-testid="back-to-head"
-            onclick={onBackToHead}
-          >
-            К голове
-          </button>
-          <button
-            class="btn btn-xs btn-primary"
-            data-testid="edit-stage"
-            onclick={onEditStage}
-          >
-            Редактировать этап
-          </button>
-        </div>
-      {:else if editing && editingIndex !== null}
+      {/if}
+      {#if editing && editingIndex !== null}
         <div
           class="alert alert-info alert-sm py-2 text-xs"
           data-testid="edit-banner"
@@ -434,66 +497,6 @@
             Редактирование Feature #{editingIndex + 1} — Commit пересчитает зависимые
             этапы.
           </span>
-        </div>
-        <div class="flex items-center gap-2 text-xs">
-          <span class="opacity-70" data-testid="draft-count"
-            >Черновик: {draftCount} оп.</span
-          >
-          <button
-            class="btn btn-xs btn-primary"
-            data-testid="commit-stage"
-            disabled={draftCount === 0}
-            onclick={onCommit}
-          >
-            Применить изменения
-          </button>
-          <button
-            class="btn btn-xs btn-ghost"
-            data-testid="discard-draft"
-            onclick={onDiscard}
-          >
-            Отмена
-          </button>
-        </div>
-      {:else}
-        <div class="flex items-center gap-2 text-xs">
-          <span class="opacity-70" data-testid="draft-count"
-            >Черновик: {draftCount} оп.</span
-          >
-          <button
-            class="btn btn-xs btn-primary"
-            data-testid="commit-stage"
-            disabled={draftCount === 0}
-            onclick={onCommit}
-          >
-            Commit: {stageLabel(stage)}
-          </button>
-          {#if draftCount > 0}
-            <button
-              class="btn btn-xs btn-ghost"
-              data-testid="discard-draft"
-              onclick={onDiscard}
-            >
-              Сбросить
-            </button>
-          {:else if stage === 'lighting'}
-            <button
-              class="btn btn-xs btn-ghost"
-              data-testid="to-viewer"
-              onclick={onToViewer}
-            >
-              К просмотру →
-            </button>
-          {:else}
-            <button
-              class="btn btn-xs btn-ghost"
-              data-testid="skip-stage"
-              title="Пропустить этап пустым (останется в истории, дополните позже)"
-              onclick={onSkip}
-            >
-              Пропустить →
-            </button>
-          {/if}
         </div>
       {/if}
     </div>
@@ -507,23 +510,7 @@
         class="rounded-box bg-base-200 p-3 text-sm shadow-xl"
         data-testid="tool-card"
       >
-        <div class="mb-1 flex items-center gap-2">
-          <h2 class="font-semibold">Инструмент</h2>
-          <button
-            class="btn btn-xs ml-auto"
-            class:btn-primary={toolOn}
-            data-testid="place-toggle"
-            title="Клик по канвасу ставит объект (Esc — выкл)"
-            onclick={() => (toolOn = !toolOn)}
-          >
-            {toolOn ? 'Ставить: вкл' : 'Ставить: выкл'}
-          </button>
-        </div>
-        {#if toolOn}
-          <p class="mb-2 text-xs opacity-70" data-testid="place-hint">
-            {HINTS[stage]} Снаппинг 1 см.
-          </p>
-        {/if}
+        <h2 class="mb-1 font-semibold">Параметры</h2>
         {#if stage === 'openings'}
           <div class="mb-2 flex gap-1">
             <button
@@ -754,8 +741,71 @@
       {features}
       {previewIndex}
       {onTogglePreview}
-      {onEditLayout}
-    />
+      {onEditFeature}
+      {draftStage}
+    >
+      {#snippet footer()}
+        {#if previewing}
+          <div class="flex items-center gap-2">
+            <button
+              class="btn btn-sm flex-1"
+              data-testid="back-to-head"
+              onclick={onBackToHead}
+            >
+              К голове
+            </button>
+            <button
+              class="btn btn-sm btn-primary flex-1"
+              data-testid="edit-stage"
+              onclick={onEditStage}
+            >
+              Редактировать этап
+            </button>
+          </div>
+        {:else}
+          {#if commitSpec}
+            <button
+              class="btn btn-sm btn-primary w-full"
+              data-testid={commitSpec.testId}
+              data-draft-count={draftCount}
+              disabled={commitSpec.disabled}
+              onclick={commitSpec.onCommit}
+            >
+              {commitSpec.label}
+            </button>
+          {/if}
+          {#if editing || draftCount > 0 || stage === 'lighting'}
+            <div class="flex items-center gap-2">
+              {#if editing}
+                <button
+                  class="btn btn-sm btn-ghost flex-1"
+                  data-testid="discard-draft"
+                  onclick={onDiscard}
+                >
+                  Отмена
+                </button>
+              {:else if draftCount > 0}
+                <button
+                  class="btn btn-sm btn-ghost flex-1"
+                  data-testid="discard-draft"
+                  onclick={onDiscard}
+                >
+                  Сбросить
+                </button>
+              {:else}
+                <button
+                  class="btn btn-sm btn-ghost flex-1"
+                  data-testid="to-viewer"
+                  onclick={onToViewer}
+                >
+                  К просмотру →
+                </button>
+              {/if}
+            </div>
+          {/if}
+        {/if}
+      {/snippet}
+    </FeatureTreePanel>
     {#if !previewing}
       {#if stage === 'openings'}
         <OpeningsPanel {openings} {onOp} />

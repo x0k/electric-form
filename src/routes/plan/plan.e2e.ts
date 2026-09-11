@@ -103,9 +103,10 @@ test('инструменты как в Sketcher: соединение, выбо�
   await expect(viewer).toHaveAttribute('data-sketch-segments', '4');
   await expect(viewer).toHaveAttribute('data-sketch-points', '4');
 
-  // Esc прерывает полилинию и включает выбор.
+  // Esc прерывает полилинию и возвращает в выбор по умолчанию
+  // (отдельной кнопки выбора нет — полилиния просто гаснет).
   await page.keyboard.press('Escape');
-  await expect(page.getByTestId('tool-select')).toHaveClass(/btn-primary/);
+  await expect(page.getByTestId('tool-draw')).not.toHaveClass(/btn-primary/);
 
   // В режиме выбора пустой клик ничего не строит...
   await click(0.7, 0.7);
@@ -127,7 +128,7 @@ test('инструменты как в Sketcher: соединение, выбо�
       button: 'right',
     }
   );
-  await expect(page.getByTestId('tool-select')).toHaveClass(/btn-primary/);
+  await expect(page.getByTestId('tool-draw')).not.toHaveClass(/btn-primary/);
   await expect(viewer).toHaveAttribute('data-sketch-points', '4');
 });
 
@@ -264,9 +265,9 @@ test('узел удаляется клавишей Delete', async ({ page }) => 
   // по p2 придёт раньше гизмо и создаст точку вместо выбора.
   await expect(viewer).toHaveAttribute('data-gizmo', '3:2');
 
-  // В режим выбора: иначе клик по p2 соединит её, а не выберет.
+  // В режим выбора по умолчанию: иначе клик по p2 соединит её, а не выберет.
   await page.keyboard.press('Escape');
-  await expect(page.getByTestId('tool-select')).toHaveClass(/btn-primary/);
+  await expect(page.getByTestId('tool-draw')).not.toHaveClass(/btn-primary/);
 
   // Клик по средней точке выбирает узел, Delete — удаляет.
   await click(0.5, 0.3);
@@ -301,7 +302,7 @@ test('рамка выбора выделяет точки и грани разо
   await click(0.5, 0.5);
   await expect(viewer).toHaveAttribute('data-sketch-points', '3');
   await page.keyboard.press('Escape');
-  await expect(page.getByTestId('tool-select')).toHaveClass(/btn-primary/);
+  await expect(page.getByTestId('tool-draw')).not.toHaveClass(/btn-primary/);
 
   // Рамка вокруг p1, p2 и грани s1 (p3 и s2 снаружи).
   const box = await canvas.boundingBox();
@@ -391,20 +392,26 @@ test('инструмент оси фиксирует грань кликом', a
     await page.mouse.click(box!.x + box!.width * fx, box!.y + box!.height * fy);
   };
 
-  // Диагональ: авто-фиксация не срабатывает (угол > 10°).
+  // Диагональ: авто-фиксация не срабатывает (угол > 10°),
+  // но длина видна сразу серой табличкой.
   await click(0.3, 0.3);
   await click(0.5, 0.45);
   await expect(viewer).toHaveAttribute('data-sketch-segments', '1');
   await expect(viewer).toHaveAttribute('data-badges', '0');
+  await expect(viewer).toHaveAttribute('data-lengths', '1');
 
   // Берём инструмент оси и кликаем середину грани: ось вычисляется.
+  // Инструменты взаимоисключающие — полилиния гаснет.
   await page.getByTestId('apply-axis').click();
+  await expect(page.getByTestId('tool-draw')).not.toHaveClass(/btn-primary/);
   await click(0.4, 0.375);
   await expect(viewer).toHaveAttribute('data-badges', '1');
   await expect(viewer).toHaveAttribute('data-dims', 's1:H');
 
-  // Инструмент залипает: Esc снимает, пустой клик снова строит.
+  // Esc снимает инструмент, полилинию включаем обратно — пустой клик строит.
   await page.keyboard.press('Escape');
+  await page.getByTestId('tool-draw').click();
+  await expect(page.getByTestId('tool-draw')).toHaveClass(/btn-primary/);
   await click(0.7, 0.6);
   await expect(viewer).toHaveAttribute('data-sketch-points', '3');
   await expect(viewer).toHaveAttribute('data-badges', '1');
@@ -432,11 +439,13 @@ test('авто выпрямляет почти-прямую грань', async (
 
   // Отрезок под ~3° к горизонтали: снапнутый конец НЕ на оси (dy=100),
   // но сырой угол чистый — грань выпрямляется и фиксируется.
+  // Длина при этом видна сразу (H — не driving-размер).
   await click(0.3, 0.3);
   await click(0.525, 0.28);
   await expect(viewer).toHaveAttribute('data-sketch-segments', '1');
   await expect(viewer).toHaveAttribute('data-badges', '1');
   await expect(viewer).toHaveAttribute('data-dims', 's1:H');
+  await expect(viewer).toHaveAttribute('data-lengths', '1');
 });
 
 test('размер: клик значком открывает значение, Enter фиксирует', async ({
@@ -467,26 +476,30 @@ test('размер: клик значком открывает значение,
   await expect(viewer).toHaveAttribute('data-sketch-segments', '1');
   await expect(viewer).toHaveAttribute('data-badges', '0');
 
-  // Инструмент длины: клик гранью открывает редактор со текущим значением.
+  // Инструмент длины: клик гранью открывает редактор со текущим значением
+  // (то же работает кликом по серой табличке длины).
   await page.getByTestId('apply-length').click();
   await click(0.4, 0.375);
   await expect(page.getByTestId('dim-popup')).toBeVisible();
   await expect(page.getByTestId('dim-value')).toHaveValue('1930');
 
-  // Подтверждаем как есть: геометрия уже точная, значок на месте.
+  // Подтверждаем как есть: геометрия уже точная, значок на месте,
+  // серая табличка уступает место driving-размеру.
   await page.keyboard.press('Enter');
   await expect(viewer).toHaveAttribute('data-badges', '1');
   await expect(viewer).toHaveAttribute('data-dims', 's1:1930');
+  await expect(viewer).toHaveAttribute('data-lengths', '0');
 
   // Повторный клик по значку открывает редактор с зафиксированным.
   await expect(viewer).toHaveAttribute('data-sprites', '1');
   await click(0.4, 0.375);
   await expect(page.getByTestId('dim-value')).toHaveValue('1930');
 
-  // Снятие через редактор убирает и значок.
+  // Снятие через редактор убирает и значок — длина видна снова.
   await page.getByRole('button', { name: /Снять ограничение/ }).click();
   await expect(viewer).toHaveAttribute('data-dims', '');
   await expect(viewer).toHaveAttribute('data-badges', '0');
+  await expect(viewer).toHaveAttribute('data-lengths', '1');
 });
 
 test('совпадение склеивает две точки', async ({ page }) => {
@@ -509,21 +522,24 @@ test('совпадение склеивает две точки', async ({ page 
     await page.mouse.click(box!.x + box!.width * fx, box!.y + box!.height * fy);
   };
 
-  // Две отдельные точки разными штрихами.
+  // Два коротких диагональных штриха (без авто-фиксации).
+  // Одиночные точки Esc теперь удаляет, поэтому штрихи — с гранями.
   await click(0.3, 0.3);
+  await click(0.52, 0.41);
   await page.keyboard.press('Escape');
   await page.getByTestId('tool-draw').click();
-  await click(0.5, 0.5);
+  await click(0.3, 0.6);
+  await click(0.52, 0.71);
   await page.keyboard.press('Escape');
-  await expect(viewer).toHaveAttribute('data-sketch-points', '2');
-  await expect(viewer).toHaveAttribute('data-gizmo', '2:0');
+  await expect(viewer).toHaveAttribute('data-sketch-points', '4');
+  await expect(viewer).toHaveAttribute('data-gizmo', '4:2');
 
   // Инструмент совпадения: первая точка вооружает, вторая склеивает.
   await page.getByTestId('apply-coincident').click();
-  await click(0.3, 0.3);
-  await click(0.5, 0.5);
-  await expect(viewer).toHaveAttribute('data-selected', 'p1,p2');
-  await expect(viewer).toHaveAttribute('data-sketch-points', '2');
+  await click(0.52, 0.41);
+  await click(0.3, 0.6);
+  await expect(viewer).toHaveAttribute('data-selected', 'p2,p3');
+  await expect(viewer).toHaveAttribute('data-sketch-points', '4');
 });
 
 test('замыкание подтягивает конец на ось', async ({ page }) => {
