@@ -40,6 +40,7 @@
     <button
       class="btn btn-sm"
       class:btn-primary={cameraMode === mode}
+      data-testid="cam-{mode}"
       onclick={() => onCameraMode(mode)}
     >
       {cameraModeLabel(mode)}

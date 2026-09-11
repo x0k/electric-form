@@ -12,9 +12,10 @@
     scene: RenderScene;
     selectedId: string | null;
     onSelectEntity: (id: string) => void;
+    onDeleteWall?: (wallId: string) => void;
   }
 
-  let { scene, selectedId, onSelectEntity }: Props = $props();
+  let { scene, selectedId, onSelectEntity, onDeleteWall }: Props = $props();
 
   const walls: RenderWallBox[] = $derived(scene.walls);
   const slabs: RenderSlabPoly[] = $derived(scene.slabs);
@@ -33,17 +34,31 @@
   <ul class="menu w-full rounded-box bg-base-100 p-1">
     {#each walls as w (w.id)}
       <li>
-        <button
-          data-testid="object-item"
-          data-id={w.id}
-          class:active={selectedId === w.id}
-          onclick={() => onSelectEntity(w.id)}
-        >
-          <span class="font-mono text-xs">{w.id}</span>
-          <span class="text-xs opacity-70">
-            Стена {(w.lengthMm / 1000).toFixed(1)} м
-          </span>
-        </button>
+        <div class="flex items-center gap-1">
+          <button
+            data-testid="object-item"
+            data-id={w.id}
+            class:active={selectedId === w.id}
+            class="flex-1 text-left"
+            onclick={() => onSelectEntity(w.id)}
+          >
+            <span class="font-mono text-xs">{w.id}</span>
+            <span class="text-xs opacity-70">
+              Стена {(w.lengthMm / 1000).toFixed(1)} м
+            </span>
+          </button>
+          {#if onDeleteWall}
+            <button
+              class="btn btn-xs btn-ghost"
+              data-testid="wall-del"
+              data-id={w.id}
+              title="Удалить стену (с проверкой зависимостей)"
+              onclick={() => onDeleteWall?.(w.id)}
+            >
+              ✕
+            </button>
+          {/if}
+        </div>
       </li>
     {/each}
     {#each slabs as s (s.id)}

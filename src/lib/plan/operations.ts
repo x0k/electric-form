@@ -1,9 +1,13 @@
 /**
- * Операции Этапа 1 «Планировка помещения» + задел под следующие этапы.
+ * Операции Этапов 1, 5a–7 «Планировка → Проёмы → Объекты».
  *
  * Каждая операция — атомарное изменение черновика внутри Feature.
  * Применение чистое: (state, op) → { ok, state } | { ok: false, error }.
  * Невалидная операция никогда не мутирует состояние.
+ *
+ * Проёмы и объекты хранятся параметрически (см. openings.ts, furnish.ts):
+ * при updateWall они автоматически следуют за стеной, проверки
+ * вместимости идут по актуальной длине стены.
  */
 
 import {
@@ -27,6 +31,16 @@ import {
   type ApartmentState,
   type SlabKind,
 } from './model';
+import { validateOpening, type OpeningKind } from './openings';
+import { findCatalogEntry, validateDims } from './catalog';
+import { validateElec, type ElecKind } from './electrics';
+import { validateLuminaire, type LightKind } from './lighting';
+import {
+  validateFloorAnchor,
+  validateWallAnchor,
+  type FloorAnchor,
+  type WallAnchor,
+} from './furnish';
 
 export type Operation =
   | {
@@ -77,7 +91,108 @@ export type Operation =
       label: string;
       hostId: string | null;
     }
-  | { type: 'removeObject'; objectId: string };
+  | { type: 'removeObject'; objectId: string }
+  | {
+      type: 'addOpening';
+      openingId: string;
+      kind: OpeningKind;
+      wallId: string;
+      offsetMm: number;
+      widthMm: number;
+      heightMm: number;
+      sillMm: number;
+    }
+  | {
+      type: 'updateOpening';
+      openingId: string;
+      offsetMm?: number;
+      widthMm?: number;
+      heightMm?: number;
+      sillMm?: number;
+    }
+  | { type: 'deleteOpening'; openingId: string }
+  | {
+      type: 'addFloorObject';
+      objectId: string;
+      kind: string;
+      label?: string;
+      anchor: FloorAnchor;
+      wMm?: number;
+      dMm?: number;
+      hMm?: number;
+    }
+  | {
+      type: 'updateFloorObject';
+      objectId: string;
+      label?: string;
+      anchor?: FloorAnchor;
+      wMm?: number;
+      dMm?: number;
+      hMm?: number;
+    }
+  | { type: 'removeFloorObject'; objectId: string }
+  | {
+      type: 'addWallObject';
+      objectId: string;
+      kind: string;
+      label?: string;
+      anchor: WallAnchor;
+      wMm?: number;
+      hMm?: number;
+      depthMm?: number;
+    }
+  | {
+      type: 'updateWallObject';
+      objectId: string;
+      label?: string;
+      anchor?: WallAnchor;
+      wMm?: number;
+      hMm?: number;
+      depthMm?: number;
+    }
+  | { type: 'removeWallObject'; objectId: string }
+  | { type: 'upsertElecGroup'; groupId: string; label: string }
+  | { type: 'deleteElecGroup'; groupId: string; cascade?: boolean }
+  | {
+      type: 'addElecPoint';
+      pointId: string;
+      kind: ElecKind;
+      wallId: string;
+      alongMm: number;
+      heightMm: number;
+      purpose: string;
+      groupId: string | null;
+    }
+  | {
+      type: 'updateElecPoint';
+      pointId: string;
+      wallId?: string;
+      alongMm?: number;
+      heightMm?: number;
+      purpose?: string;
+      groupId?: string | null;
+    }
+  | { type: 'removeElecPoint'; pointId: string }
+  | { type: 'upsertLightGroup'; groupId: string; label: string }
+  | { type: 'deleteLightGroup'; groupId: string; cascade?: boolean }
+  | {
+      type: 'addLuminaire';
+      luminaireId: string;
+      kind: LightKind;
+      roomId: string;
+      xMm: number;
+      yMm: number;
+      groupId: string | null;
+    }
+  | {
+      type: 'updateLuminaire';
+      luminaireId: string;
+      roomId?: string;
+      xMm?: number;
+      yMm?: number;
+      groupId?: string | null;
+    }
+  | { type: 'removeLuminaire'; luminaireId: string };
 
 export type ApplyErrorCode =
   | 'ID_TAKEN'
@@ -250,12 +365,26 @@ export function applyOperation(
             if (room) {
               room.wallIds = room.wallIds.filter((w) => w !== op.wallId);
             }
+          } else if (d.kind === 'opening') {
+            // Проём без стены не существует — удаляем явно.
+            delete next.openings[d.id];
+          } else if (d.kind === 'wallObject') {
+            delete next.wallObjects[d.id];
+          } else if (d.kind === 'floorObject') {
+            // Только wall-якорь теряет хозяина; room/corner живут дальше.
+            const fo = next.floorObjects[d.id];
+            if (fo && fo.anchor.type === 'wall') delete next.floorObjects[d.id];
+          } else if (d.kind === 'elecPoint') {
+            delete next.elecPoints[d.id];
           } else {
             const obj = next.objects[d.id];
             if (obj) obj.hostId = null;
           }
         }
       }
+      // После удаления стены проверяем, что surviving проёмы/объекты
+      // всё ещё вмещаются (укорочение стены updateWall проверяется иначе:
+      // там replay downstream сам даст конфликты; здесь стена уже gone).
       return { ok: true, state: next };
     }
 
@@ -348,8 +477,14 @@ export function applyOperation(
       delete next.rooms[op.roomId];
       if (op.cascade) {
         for (const d of dependents) {
-          const obj = next.objects[d.id];
-          if (obj) obj.hostId = null;
+          if (d.kind === 'floorObject') {
+            delete next.floorObjects[d.id];
+          } else if (d.kind === 'luminaire') {
+            delete next.luminaires[d.id];
+          } else {
+            const obj = next.objects[d.id];
+            if (obj) obj.hostId = null;
+          }
         }
         // Плиты пола/потолка контур не теряют — они независимы от комнат.
       }
@@ -451,5 +586,389 @@ export function applyOperation(
       delete next.objects[op.objectId];
       return { ok: true, state: next };
     }
+
+    case 'addOpening': {
+      const taken = checkIdFree(prev, op.openingId);
+      if (taken) return taken;
+      const err = validateOpening(prev.walls, prev.openings ?? {}, {
+        id: op.openingId,
+        kind: op.kind,
+        wallId: op.wallId,
+        offsetMm: op.offsetMm,
+        widthMm: op.widthMm,
+        heightMm: op.heightMm,
+        sillMm: op.sillMm,
+      });
+      if (err) return fail(codeForOpeningError(err), err);
+      const next = cloneState(prev);
+      next.openings[op.openingId] = {
+        id: op.openingId,
+        kind: op.kind,
+        wallId: op.wallId,
+        offsetMm: op.offsetMm,
+        widthMm: op.widthMm,
+        heightMm: op.heightMm,
+        sillMm: op.sillMm,
+      };
+      return { ok: true, state: next };
+    }
+
+    case 'updateOpening': {
+      const cur = (prev.openings ?? {})[op.openingId];
+      if (!cur) return fail('NOT_FOUND', `Проём "${op.openingId}" не найден.`);
+      const draft = {
+        id: cur.id,
+        kind: cur.kind,
+        wallId: cur.wallId,
+        offsetMm: op.offsetMm ?? cur.offsetMm,
+        widthMm: op.widthMm ?? cur.widthMm,
+        heightMm: op.heightMm ?? cur.heightMm,
+        sillMm: op.sillMm ?? cur.sillMm,
+      };
+      const err = validateOpening(
+        prev.walls,
+        prev.openings ?? {},
+        draft,
+        cur.id
+      );
+      if (err) return fail(codeForOpeningError(err), err);
+      const next = cloneState(prev);
+      next.openings[op.openingId] = { ...draft };
+      return { ok: true, state: next };
+    }
+
+    case 'deleteOpening': {
+      if (!(prev.openings ?? {})[op.openingId]) {
+        return fail('NOT_FOUND', `Проём "${op.openingId}" не найден.`);
+      }
+      const next = cloneState(prev);
+      delete next.openings[op.openingId];
+      return { ok: true, state: next };
+    }
+
+    case 'addFloorObject': {
+      const taken = checkIdFree(prev, op.objectId);
+      if (taken) return taken;
+      const entry = findCatalogEntry(op.kind);
+      if (!entry) return fail('BAD_GEOMETRY', `Неизвестный тип "${op.kind}".`);
+      if (entry.group !== 'floor') {
+        return fail(
+          'BAD_GEOMETRY',
+          `"${op.kind}" — навесной, используйте addWallObject.`
+        );
+      }
+      const wMm = op.wMm ?? entry.defW;
+      const dMm = op.dMm ?? entry.defD;
+      const hMm = op.hMm ?? entry.defH;
+      const dims = validateDims(op.kind, wMm, dMm, hMm);
+      if (dims) return fail('BAD_GEOMETRY', dims);
+      const anchorErr = validateFloorAnchor(prev, op.anchor, wMm);
+      if (anchorErr) return fail(hostCode(anchorErr), anchorErr);
+      const next = cloneState(prev);
+      next.floorObjects[op.objectId] = {
+        id: op.objectId,
+        kind: op.kind,
+        label: op.label?.trim() ? op.label : entry.label,
+        anchor: { ...op.anchor } as FloorAnchor,
+        wMm,
+        dMm,
+        hMm,
+      };
+      return { ok: true, state: next };
+    }
+
+    case 'updateFloorObject': {
+      const cur = (prev.floorObjects ?? {})[op.objectId];
+      if (!cur) return fail('NOT_FOUND', `Объект "${op.objectId}" не найден.`);
+      const wMm = op.wMm ?? cur.wMm;
+      const dMm = op.dMm ?? cur.dMm;
+      const hMm = op.hMm ?? cur.hMm;
+      const dims = validateDims(cur.kind, wMm, dMm, hMm);
+      if (dims) return fail('BAD_GEOMETRY', dims);
+      const anchor = (op.anchor ?? cur.anchor) as FloorAnchor;
+      const anchorErr = validateFloorAnchor(prev, anchor, wMm);
+      if (anchorErr) return fail(hostCode(anchorErr), anchorErr);
+      const next = cloneState(prev);
+      next.floorObjects[op.objectId] = {
+        ...cur,
+        label: op.label !== undefined ? op.label : cur.label,
+        anchor: { ...anchor } as FloorAnchor,
+        wMm,
+        dMm,
+        hMm,
+      };
+      return { ok: true, state: next };
+    }
+
+    case 'removeFloorObject': {
+      if (!(prev.floorObjects ?? {})[op.objectId]) {
+        return fail('NOT_FOUND', `Объект "${op.objectId}" не найден.`);
+      }
+      const next = cloneState(prev);
+      delete next.floorObjects[op.objectId];
+      return { ok: true, state: next };
+    }
+
+    case 'addWallObject': {
+      const taken = checkIdFree(prev, op.objectId);
+      if (taken) return taken;
+      const entry = findCatalogEntry(op.kind);
+      if (!entry) return fail('BAD_GEOMETRY', `Неизвестный тип "${op.kind}".`);
+      if (entry.group !== 'wall') {
+        return fail(
+          'BAD_GEOMETRY',
+          `"${op.kind}" — напольный, используйте addFloorObject.`
+        );
+      }
+      const wMm = op.wMm ?? entry.defW;
+      const depthMm = op.depthMm ?? entry.defD;
+      const hMm = op.hMm ?? entry.defH;
+      const dims = validateDims(op.kind, wMm, depthMm, hMm);
+      if (dims) return fail('BAD_GEOMETRY', dims);
+      const anchorErr = validateWallAnchor(prev.walls, op.anchor, wMm);
+      if (anchorErr) return fail(hostCode(anchorErr), anchorErr);
+      const next = cloneState(prev);
+      next.wallObjects[op.objectId] = {
+        id: op.objectId,
+        kind: op.kind,
+        label: op.label?.trim() ? op.label : entry.label,
+        anchor: { ...op.anchor },
+        wMm,
+        hMm,
+        depthMm,
+      };
+      return { ok: true, state: next };
+    }
+
+    case 'updateWallObject': {
+      const cur = (prev.wallObjects ?? {})[op.objectId];
+      if (!cur) return fail('NOT_FOUND', `Объект "${op.objectId}" не найден.`);
+      const wMm = op.wMm ?? cur.wMm;
+      const depthMm = op.depthMm ?? cur.depthMm;
+      const hMm = op.hMm ?? cur.hMm;
+      const dims = validateDims(cur.kind, wMm, depthMm, hMm);
+      if (dims) return fail('BAD_GEOMETRY', dims);
+      const anchor = op.anchor ?? cur.anchor;
+      const anchorErr = validateWallAnchor(prev.walls, anchor, wMm);
+      if (anchorErr) return fail(hostCode(anchorErr), anchorErr);
+      const next = cloneState(prev);
+      next.wallObjects[op.objectId] = {
+        ...cur,
+        label: op.label !== undefined ? op.label : cur.label,
+        anchor: { ...anchor },
+        wMm,
+        hMm,
+        depthMm,
+      };
+      return { ok: true, state: next };
+    }
+
+    case 'removeWallObject': {
+      if (!(prev.wallObjects ?? {})[op.objectId]) {
+        return fail('NOT_FOUND', `Объект "${op.objectId}" не найден.`);
+      }
+      const next = cloneState(prev);
+      delete next.wallObjects[op.objectId];
+      return { ok: true, state: next };
+    }
+
+    case 'upsertElecGroup': {
+      if (!op.groupId)
+        return fail('BAD_GEOMETRY', 'Пустой id группы запрещён.');
+      if (!op.label.trim()) return fail('BAD_GEOMETRY', 'Имя группы пустое.');
+      const next = cloneState(prev);
+      next.elecGroups[op.groupId] = { id: op.groupId, label: op.label };
+      return { ok: true, state: next };
+    }
+
+    case 'deleteElecGroup': {
+      if (!prev.elecGroups[op.groupId]) {
+        return fail('NOT_FOUND', `Группа "${op.groupId}" не найдена.`);
+      }
+      const members = Object.values(prev.elecPoints ?? {}).filter(
+        (p) => p.groupId === op.groupId
+      );
+      if (members.length > 0 && !op.cascade) {
+        return {
+          ok: false,
+          error: {
+            code: 'HAS_DEPENDENTS',
+            message: `Группа удаляется. В ней ${members.length} точка(и). Продолжить?`,
+            dependents: members.map((m) => ({
+              kind: 'elecPoint',
+              id: m.id,
+              label: m.id,
+            })),
+          },
+        };
+      }
+      const next = cloneState(prev);
+      delete next.elecGroups[op.groupId];
+      if (op.cascade) {
+        for (const m of members) {
+          const pt = next.elecPoints[m.id];
+          if (pt) pt.groupId = null;
+        }
+      }
+      return { ok: true, state: next };
+    }
+
+    case 'addElecPoint': {
+      const taken = checkIdFree(prev, op.pointId);
+      if (taken) return taken;
+      const err = validateElec(prev.walls, prev.elecGroups ?? {}, {
+        id: op.pointId,
+        kind: op.kind,
+        wallId: op.wallId,
+        alongMm: op.alongMm,
+        heightMm: op.heightMm,
+        purpose: op.purpose,
+        groupId: op.groupId,
+      });
+      if (err) return fail(codeForOpeningError(err), err);
+      const next = cloneState(prev);
+      next.elecPoints[op.pointId] = {
+        id: op.pointId,
+        kind: op.kind,
+        wallId: op.wallId,
+        alongMm: op.alongMm,
+        heightMm: op.heightMm,
+        purpose: op.purpose,
+        groupId: op.groupId,
+      };
+      return { ok: true, state: next };
+    }
+
+    case 'updateElecPoint': {
+      const cur = (prev.elecPoints ?? {})[op.pointId];
+      if (!cur)
+        return fail('NOT_FOUND', `Электроточка "${op.pointId}" не найдена.`);
+      const draft = {
+        id: cur.id,
+        kind: cur.kind,
+        wallId: op.wallId ?? cur.wallId,
+        alongMm: op.alongMm ?? cur.alongMm,
+        heightMm: op.heightMm ?? cur.heightMm,
+        purpose: op.purpose ?? cur.purpose,
+        groupId: op.groupId !== undefined ? op.groupId : cur.groupId,
+      };
+      const err = validateElec(prev.walls, prev.elecGroups ?? {}, draft);
+      if (err) return fail(codeForOpeningError(err), err);
+      const next = cloneState(prev);
+      next.elecPoints[op.pointId] = { ...draft };
+      return { ok: true, state: next };
+    }
+
+    case 'removeElecPoint': {
+      if (!(prev.elecPoints ?? {})[op.pointId]) {
+        return fail('NOT_FOUND', `Электроточка "${op.pointId}" не найдена.`);
+      }
+      const next = cloneState(prev);
+      delete next.elecPoints[op.pointId];
+      return { ok: true, state: next };
+    }
+
+    case 'upsertLightGroup': {
+      if (!op.groupId)
+        return fail('BAD_GEOMETRY', 'Пустой id группы запрещён.');
+      if (!op.label.trim()) return fail('BAD_GEOMETRY', 'Имя группы пустое.');
+      const next = cloneState(prev);
+      next.lightGroups[op.groupId] = { id: op.groupId, label: op.label };
+      return { ok: true, state: next };
+    }
+
+    case 'deleteLightGroup': {
+      if (!prev.lightGroups[op.groupId]) {
+        return fail('NOT_FOUND', `Группа "${op.groupId}" не найдена.`);
+      }
+      const members = Object.values(prev.luminaires ?? {}).filter(
+        (l) => l.groupId === op.groupId
+      );
+      if (members.length > 0 && !op.cascade) {
+        return {
+          ok: false,
+          error: {
+            code: 'HAS_DEPENDENTS',
+            message: `Группа удаляется. В ней ${members.length} светильник(а). Продолжить?`,
+            dependents: members.map((m) => ({
+              kind: 'luminaire',
+              id: m.id,
+              label: m.id,
+            })),
+          },
+        };
+      }
+      const next = cloneState(prev);
+      delete next.lightGroups[op.groupId];
+      if (op.cascade) {
+        for (const m of members) {
+          const l = next.luminaires[m.id];
+          if (l) l.groupId = null;
+        }
+      }
+      return { ok: true, state: next };
+    }
+
+    case 'addLuminaire': {
+      const taken = checkIdFree(prev, op.luminaireId);
+      if (taken) return taken;
+      const err = validateLuminaire(prev.rooms, prev.lightGroups ?? {}, {
+        id: op.luminaireId,
+        kind: op.kind,
+        roomId: op.roomId,
+        xMm: op.xMm,
+        yMm: op.yMm,
+        groupId: op.groupId,
+      });
+      if (err) return fail(codeForOpeningError(err), err);
+      const next = cloneState(prev);
+      next.luminaires[op.luminaireId] = {
+        id: op.luminaireId,
+        kind: op.kind,
+        roomId: op.roomId,
+        xMm: op.xMm,
+        yMm: op.yMm,
+        groupId: op.groupId,
+      };
+      return { ok: true, state: next };
+    }
+
+    case 'updateLuminaire': {
+      const cur = (prev.luminaires ?? {})[op.luminaireId];
+      if (!cur)
+        return fail('NOT_FOUND', `Светильник "${op.luminaireId}" не найден.`);
+      const draft = {
+        id: cur.id,
+        kind: cur.kind,
+        roomId: op.roomId ?? cur.roomId,
+        xMm: op.xMm ?? cur.xMm,
+        yMm: op.yMm ?? cur.yMm,
+        groupId: op.groupId !== undefined ? op.groupId : cur.groupId,
+      };
+      const err = validateLuminaire(prev.rooms, prev.lightGroups ?? {}, draft);
+      if (err) return fail(codeForOpeningError(err), err);
+      const next = cloneState(prev);
+      next.luminaires[op.luminaireId] = { ...draft };
+      return { ok: true, state: next };
+    }
+
+    case 'removeLuminaire': {
+      if (!(prev.luminaires ?? {})[op.luminaireId]) {
+        return fail('NOT_FOUND', `Светильник "${op.luminaireId}" не найден.`);
+      }
+      const next = cloneState(prev);
+      delete next.luminaires[op.luminaireId];
+      return { ok: true, state: next };
+    }
   }
+}
+
+function hostCode(message: string): ApplyErrorCode {
+  return /не найдена?/.test(message) ? 'UNKNOWN_HOST' : 'BAD_GEOMETRY';
+}
+
+function codeForOpeningError(message: string): ApplyErrorCode {
+  if (/не найдена?/.test(message)) return 'UNKNOWN_HOST';
+  if (/кратен|целые/.test(message)) return 'OFF_GRID';
+  return 'BAD_GEOMETRY';
 }

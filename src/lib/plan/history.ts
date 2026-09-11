@@ -15,7 +15,39 @@ import { applyOperation, type ApplyError, type Operation } from './operations';
 import { createEmptyApartment, type ApartmentState } from './model';
 
 export type StageKind =
-  'layout' | 'floorObjects' | 'wallObjects' | 'sockets' | 'lighting';
+  | 'layout'
+  | 'openings'
+  | 'floorObjects'
+  | 'wallObjects'
+  | 'sockets'
+  | 'lighting';
+
+/** Порядок этапов по ТЗ с поправкой: проёмы — до объектов. */
+export const STAGE_ORDER: StageKind[] = [
+  'layout',
+  'openings',
+  'floorObjects',
+  'wallObjects',
+  'sockets',
+  'lighting',
+];
+
+export function stageLabel(stage: StageKind): string {
+  switch (stage) {
+    case 'layout':
+      return 'Планировка помещения';
+    case 'openings':
+      return 'Двери и окна';
+    case 'floorObjects':
+      return 'Напольные объекты';
+    case 'wallObjects':
+      return 'Навесные объекты';
+    case 'sockets':
+      return 'Розетки и выключатели';
+    case 'lighting':
+      return 'Освещение';
+  }
+}
 
 export interface Feature {
   id: string;

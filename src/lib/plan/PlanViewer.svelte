@@ -20,6 +20,19 @@
   } from './sketch';
   import { snapPlanPoint, lockToAxis } from './viewport';
   import { BASE_GRID_MM, axisAngleClean, type Vec2 } from './geometry';
+  import type { PlaceHit } from './placing';
+
+  /** Спецификация госта размещения: слой + габариты-превью, мм. */
+  export interface PlaceToolSpec {
+    layer: 'floorObject' | 'wallObject' | 'elec' | 'light' | 'opening';
+    wMm: number;
+    dMm: number;
+    hMm: number;
+    /** Базовая высота: низ объекта / sill проёма, мм. */
+    zMm: number;
+    /** Поворот напольного госта, градусы. */
+    rotDeg: number;
+  }
 
   /**
    * Контекст клика по плоскости: сырая точка до снаппинга,
@@ -92,6 +105,19 @@
      * именно его начала. null — замыканий не предвидится.
      */
     activeStroke?: number | null;
+    /**
+     * Графическое размещение: какой слой кладём кликом по сцене.
+     * null — обычный режим (выбор/скетч). Гост строится из габаритов.
+     */
+    placeTool?: PlaceToolSpec | null;
+    /** Id сущностей текущего этапа — их можно таскать мышью. */
+    draggableIds?: string[];
+    /** Клик-подтверждение размещения (план уже со снаппингом 1 см). */
+    onPlace?: (hit: PlaceHit) => void;
+    /** Финал перетаскивания: гост уже погашен, меш не двигался. */
+    onObjectMove?: (id: string, hit: PlaceHit) => void;
+    /** Esc в режиме инструмента/перетаскивания. */
+    onToolCancel?: () => void;
   }
 
   let {
@@ -117,6 +143,11 @@
     rubberLockHint = false,
     activeStroke = null,
     reframeNonce = 0,
+    placeTool = null,
+    draggableIds = [],
+    onPlace,
+    onObjectMove,
+    onToolCancel,
   }: Props = $props();
 
   /** мм → м: в three.js работаем в метрах. */
@@ -124,6 +155,12 @@
   const WALL_COLOR = 0xe7e5e4;
   const FLOOR_COLOR = 0xf5f5f4;
   const CEIL_COLOR = 0xd6d3d1;
+  const DOOR_LEAF_COLOR = 0xb45309;
+  const FURN_COLOR = 0xd6a35c;
+  const WALLMOUNT_COLOR = 0x93c5fd;
+  const SOCKET_COLOR = 0x2563eb;
+  const SWITCH_COLOR = 0xea580c;
+  const LIGHT_COLOR = 0xfde047;
   const SELECT_COLOR = 0xea580c;
   const SKETCH_LINE_COLOR = 0x2563eb;
   const SKETCH_POINT_COLOR = 0x2563eb;
@@ -206,9 +243,33 @@
   let boxRect: { x: number; y: number; w: number; h: number } | null =
     $state(null);
 
+  // Графическое размещение и перетаскивание объектов (этапы 5a–11).
+  // Гост — один переиспользуемый меш: ни одного ребилда сцены на движение.
+  let ghost: THREE.Mesh | null = null;
+  let ghostSig: string | null = null;
+  /** Позиция госта «x,y» для e2e; '' — гост скрыт. */
+  let ghostKey = $state('');
+  /** Стена под гостом для e2e (поиск точки стены свипом); '' — пол/нет. */
+  let ghostWall = $state('');
+  /** Тащим объект: id + захват (курсор минус центр, мм плана). */
+  let objDragId: string | null = null;
+  let objDragGrab: Vec2 | null = null;
+  let objDragHit: PlaceHit | null = null;
+  const GHOST_COLOR = 0x16a34a;
+  /** Высота подвеса госта света — как у рендера светильников. */
+  const LIGHT_GHOST_Y_M = 2.6;
+
   const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
-  const entityCount = $derived(scene.walls.length + scene.slabs.length);
+  const entityCount = $derived(
+    scene.walls.length +
+      scene.slabs.length +
+      (scene.openings?.length ?? 0) +
+      (scene.floorObjects?.length ?? 0) +
+      (scene.wallObjects?.length ?? 0) +
+      (scene.elec?.length ?? 0) +
+      (scene.lights?.length ?? 0)
+  );
   const sketchPointCount = $derived(
     sketch ? Object.keys(sketch.points).length : 0
   );
@@ -285,6 +346,23 @@
     canvas.addEventListener('pointercancel', onPointerCancel);
     canvas.addEventListener('pointerleave', onPointerLeave);
 
+    // Esc отменяет размещение/перетаскивание. Скетч-режим его не видит:
+    // там placeTool пуст и objDragId не выставляется. В полях ввода — игнор.
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key !== 'Escape') return;
+      const t = ev.target as HTMLElement | null;
+      const tag = t?.tagName ?? '';
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+      if (objDragId) {
+        cancelObjDrag();
+        suppressClick = true;
+      } else if (placeTool) {
+        hideGhost();
+        onToolCancel?.();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+
     const loop = () => {
       raf = requestAnimationFrame(loop);
       controls?.update();
@@ -306,6 +384,7 @@
       canvas?.removeEventListener('pointerup', onPointerUp);
       canvas?.removeEventListener('pointercancel', onPointerCancel);
       canvas?.removeEventListener('pointerleave', onPointerLeave);
+      window.removeEventListener('keydown', onKey);
       controls?.dispose();
       disposeContent();
       disposeSketch();
@@ -329,6 +408,7 @@
       renderer?.dispose();
       renderer = null;
       threeScene = null;
+      disposeGhost();
       perspCamera = null;
       orthoCamera = null;
       activeCamera = null;
@@ -381,6 +461,11 @@
     void rubberLocked;
     if (!ready) return;
     updateRubber();
+  });
+
+  // Инструмент выключили — гост гаснет.
+  $effect(() => {
+    if (!placeTool) hideGhost();
   });
 
   function boundsKey(): string {
@@ -475,6 +560,9 @@
   function rebuild() {
     if (!threeScene) return;
     disposeContent();
+    // Сцена сменилась — жест прерван, гост прячем (спецификация жива).
+    cancelObjDrag();
+    hideGhost();
     // Карта подсветки сброшена — старые id скетча больше не валидны.
     indexedSketchIds = [];
     content = new THREE.Group();
@@ -483,20 +571,36 @@
     sketchHandles = [];
     segmentLines = [];
 
-    for (const w of scene.walls) {
+    // Стены — кусками между проёмами (честные дыры, не накладки).
+    // wallSegs всегда есть из modelToScene; фолбэк — цельные боксы
+    // для сцен, собранных вручную (тесты/харнесы старого формата).
+    const segs =
+      scene.wallSegs ??
+      scene.walls.map((w) => ({
+        kind: 'wallSeg' as const,
+        wallId: w.id,
+        segIndex: 0,
+        cxMm: w.cxMm,
+        cyMm: w.cyMm,
+        lengthMm: w.lengthMm + (w.extAMm ?? 0) + (w.extBMm ?? 0),
+        angleRad: w.angleRad,
+        thicknessMm: w.thicknessMm,
+        heightMm: w.heightMm,
+      }));
+    for (const sg of segs) {
       const geo = new THREE.BoxGeometry(
-        (w.lengthMm + (w.extAMm ?? 0) + (w.extBMm ?? 0)) * K,
-        w.heightMm * K,
-        w.thicknessMm * K
+        sg.lengthMm * K,
+        sg.heightMm * K,
+        sg.thicknessMm * K
       );
       const mat = new THREE.MeshStandardMaterial({ color: WALL_COLOR });
       const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.set(w.cxMm * K, (w.heightMm * K) / 2, -w.cyMm * K);
-      mesh.rotation.y = w.angleRad;
-      mesh.userData.entityId = w.id;
+      mesh.position.set(sg.cxMm * K, (sg.heightMm * K) / 2, -sg.cyMm * K);
+      mesh.rotation.y = sg.angleRad;
+      mesh.userData.entityId = sg.wallId;
       content.add(mesh);
       pickables.push(mesh);
-      track(w.id, mesh);
+      track(sg.wallId, mesh);
     }
 
     for (const s of scene.slabs) {
@@ -524,6 +628,115 @@
       // Потолок из выбора исключён: клик сквозь него попадает в комнату.
       if (isFloor) pickables.push(mesh);
       track(s.id, mesh);
+    }
+
+    // Проёмы — настоящие дыры в стене (куски выше), поэтому видимого
+    // меша нет. Невидимый pick-бокс сохраняет выбор и drag: opacity 0,
+    // но луч его ловит (visible=true, depthWrite=false — ничего не рисует).
+    for (const o of scene.openings ?? []) {
+      const wall = scene.walls.find((w) => w.id === o.wallId);
+      const thickM = (wall?.thicknessMm ?? 200) * K;
+      const hM = o.heightMm * K;
+      const geo = new THREE.BoxGeometry(o.widthMm * K, hM, thickM * 1.04);
+      const mat = new THREE.MeshStandardMaterial({
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(
+        o.cxMm * K,
+        o.sillMm * K + hM / 2 || hM / 2,
+        -o.cyMm * K
+      );
+      mesh.rotation.y = o.angleRad;
+      mesh.userData.entityId = o.id;
+      content.add(mesh);
+      pickables.push(mesh);
+      track(o.id, mesh);
+      // Дверное полотно: тонкая створка под углом 30° для читаемости.
+      if (o.openingKind === 'door') {
+        const leafGeo = new THREE.BoxGeometry(o.widthMm * K, hM, 0.04);
+        const leafMat = new THREE.MeshStandardMaterial({
+          color: DOOR_LEAF_COLOR,
+        });
+        const leaf = new THREE.Mesh(leafGeo, leafMat);
+        const hx = Math.cos(o.angleRad);
+        const hz = -Math.sin(o.angleRad);
+        leaf.position.set(
+          (o.p0.x * K + o.cxMm * K) / 2 + hz * 0.2,
+          hM / 2,
+          (-o.p0.y * K + -o.cyMm * K) / 2 + hx * 0.2
+        );
+        leaf.rotation.y = o.angleRad + Math.PI / 6;
+        leaf.userData.entityId = o.id;
+        content.add(leaf);
+        track(o.id, leaf);
+      }
+    }
+
+    // Напольные объекты: боксы на полу по габаритам каталога.
+    for (const f of scene.floorObjects ?? []) {
+      const geo = new THREE.BoxGeometry(f.wMm * K, f.hMm * K, f.dMm * K);
+      const mat = new THREE.MeshStandardMaterial({ color: FURN_COLOR });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(f.cxMm * K, (f.hMm * K) / 2, -f.cyMm * K);
+      mesh.rotation.y = f.angleRad;
+      mesh.userData.entityId = f.id;
+      content.add(mesh);
+      pickables.push(mesh);
+      track(f.id, mesh);
+    }
+
+    // Навесные: боксы на стене на высоте монтажа.
+    for (const m of scene.wallObjects ?? []) {
+      const geo = new THREE.BoxGeometry(m.wMm * K, m.hMm * K, m.depthMm * K);
+      const mat = new THREE.MeshStandardMaterial({ color: WALLMOUNT_COLOR });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(
+        m.xMm * K,
+        m.zMm * K + (m.hMm * K) / 2 || (m.hMm * K) / 2,
+        -m.yMm * K
+      );
+      mesh.rotation.y = m.angleRad;
+      mesh.userData.entityId = m.id;
+      content.add(mesh);
+      pickables.push(mesh);
+      track(m.id, mesh);
+    }
+
+    // Электрика: розетки — синие кубики, выключатели — оранжевые.
+    for (const e of scene.elec ?? []) {
+      const geo = new THREE.BoxGeometry(0.09, 0.09, 0.03);
+      const mat = new THREE.MeshStandardMaterial({
+        color: e.elecKind === 'socket' ? SOCKET_COLOR : SWITCH_COLOR,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(e.xMm * K, e.zMm * K, -e.yMm * K);
+      mesh.userData.entityId = e.id;
+      content.add(mesh);
+      pickables.push(mesh);
+      track(e.id, mesh);
+    }
+
+    // Свет: светящиеся сферы на потолке (y = 2.6 м визуально).
+    for (const l of scene.lights ?? []) {
+      const geo = new THREE.SphereGeometry(
+        l.lightKind === 'spot' ? 0.05 : 0.09,
+        16,
+        12
+      );
+      const mat = new THREE.MeshStandardMaterial({
+        color: LIGHT_COLOR,
+        emissive: LIGHT_COLOR,
+        emissiveIntensity: 0.9,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(l.xMm * K, 2.6, -l.yMm * K);
+      mesh.userData.entityId = l.id;
+      content.add(mesh);
+      pickables.push(mesh);
+      track(l.id, mesh);
     }
 
     threeScene.add(content);
@@ -944,6 +1157,264 @@
     );
   }
 
+  /* ---------- Графическое размещение: гост, хит, drag ---------- */
+
+  function disposeGhost() {
+    if (ghost) {
+      threeScene?.remove(ghost);
+      ghost.geometry.dispose();
+      (ghost.material as THREE.Material).dispose();
+    }
+    ghost = null;
+    ghostSig = null;
+  }
+
+  function hideGhost() {
+    ghostKey = '';
+    ghostWall = '';
+    if (ghost) ghost.visible = false;
+  }
+
+  /** Перестроить гост, только если сменилась спецификация. */
+  function ensureGhost(sig: string, build: () => THREE.Mesh) {
+    if (!threeScene) return;
+    if (ghost && ghostSig === sig) {
+      ghost.visible = true;
+      return;
+    }
+    disposeGhost();
+    ghost = build();
+    ghostSig = sig;
+    ghost.visible = true;
+    ghost.renderOrder = 997;
+    // В pickables не кладём: гост никогда не перехватывает луч.
+    threeScene.add(ghost);
+  }
+
+  function ghostMesh(
+    kind: 'box' | 'sphere',
+    sxM: number,
+    syM: number,
+    szM: number
+  ): THREE.Mesh {
+    const geo =
+      kind === 'box'
+        ? new THREE.BoxGeometry(
+            Math.max(sxM, 0.02),
+            Math.max(syM, 0.02),
+            Math.max(szM, 0.02)
+          )
+        : new THREE.SphereGeometry(Math.max(sxM / 2, 0.03), 16, 12);
+    const mat = new THREE.MeshStandardMaterial({
+      color: GHOST_COLOR,
+      transparent: true,
+      opacity: 0.45,
+      depthWrite: false,
+    });
+    return new THREE.Mesh(geo, mat);
+  }
+
+  function wallAngleOf(wallId: string): number | null {
+    const w = scene.walls.find((x) => x.id === wallId);
+    return w ? w.angleRad : null;
+  }
+
+  /** Центр объекта сцены в плане по id (захват при drag). */
+  function objectCenterOf(id: string): (Vec2 & { angleRad: number }) | null {
+    const f = (scene.floorObjects ?? []).find((o) => o.id === id);
+    if (f) return { x: f.cxMm, y: f.cyMm, angleRad: f.angleRad };
+    const m = (scene.wallObjects ?? []).find((o) => o.id === id);
+    if (m) return { x: m.xMm, y: m.yMm, angleRad: m.angleRad };
+    const e = (scene.elec ?? []).find((o) => o.id === id);
+    if (e) return { x: e.xMm, y: e.yMm, angleRad: 0 };
+    const l = (scene.lights ?? []).find((o) => o.id === id);
+    if (l) return { x: l.xMm, y: l.yMm, angleRad: 0 };
+    const o = (scene.openings ?? []).find((x) => x.id === id);
+    if (o) return { x: o.cxMm, y: o.cyMm, angleRad: o.angleRad };
+    return null;
+  }
+
+  /** Габариты госта перетаскиваемого объекта — из сцены, метры + высота. */
+  function dragGhostDims(id: string): {
+    kind: 'box' | 'sphere';
+    sx: number;
+    sy: number;
+    sz: number;
+    yM: number;
+  } | null {
+    const f = (scene.floorObjects ?? []).find((o) => o.id === id);
+    if (f) {
+      return {
+        kind: 'box',
+        sx: f.wMm * K,
+        sy: f.hMm * K,
+        sz: f.dMm * K,
+        yM: (f.hMm * K) / 2,
+      };
+    }
+    const m = (scene.wallObjects ?? []).find((o) => o.id === id);
+    if (m) {
+      return {
+        kind: 'box',
+        sx: m.wMm * K,
+        sy: m.hMm * K,
+        sz: m.depthMm * K,
+        yM: m.zMm * K + (m.hMm * K) / 2,
+      };
+    }
+    const e = (scene.elec ?? []).find((o) => o.id === id);
+    if (e) {
+      return { kind: 'box', sx: 0.09, sy: 0.09, sz: 0.03, yM: e.zMm * K };
+    }
+    const l = (scene.lights ?? []).find((o) => o.id === id);
+    if (l) {
+      return {
+        kind: 'sphere',
+        sx: 0.18,
+        sy: 0.18,
+        sz: 0.18,
+        yM: LIGHT_GHOST_Y_M,
+      };
+    }
+    const o = (scene.openings ?? []).find((x) => x.id === id);
+    if (o) {
+      const wall = scene.walls.find((w) => w.id === o.wallId);
+      return {
+        kind: 'box',
+        sx: o.widthMm * K,
+        sy: o.heightMm * K,
+        sz: (wall?.thicknessMm ?? 200) * K,
+        yM: o.sillMm * K + (o.heightMm * K) / 2,
+      };
+    }
+    return null;
+  }
+
+  /** Стена под курсором (погашенные пропускаем — клик идёт сквозь). */
+  function wallHitAt(
+    ndc: THREE.Vector2
+  ): { wallId: string; point: THREE.Vector3 } | null {
+    const ray = makeRay(ndc);
+    if (!ray) return null;
+    const wallIds = new Set(scene.walls.map((w) => w.id));
+    const hits = ray.intersectObjects(pickables, false);
+    const hit = hits.find(
+      (h) =>
+        !h.object.userData.faded &&
+        wallIds.has(h.object.userData.entityId as string)
+    );
+    if (!hit) return null;
+    return { wallId: hit.object.userData.entityId as string, point: hit.point };
+  }
+
+  /** Объект текущего этапа под курсором (кандидат на drag). */
+  function modelObjectAt(ndc: THREE.Vector2): string | null {
+    if (draggableIds.length === 0) return null;
+    const ray = makeRay(ndc);
+    if (!ray) return null;
+    const ids = new Set(draggableIds);
+    const hits = ray.intersectObjects(pickables, false);
+    const hit = hits.find(
+      (h) =>
+        !h.object.userData.faded &&
+        ids.has(h.object.userData.entityId as string)
+    );
+    return (hit?.object.userData.entityId as string | undefined) ?? null;
+  }
+
+  /** Пол под курсором (для госта: вне комнаты гост не показываем). */
+  function floorHitAt(ndc: THREE.Vector2): boolean {
+    const ray = makeRay(ndc);
+    if (!ray) return false;
+    const floorIds = new Set(
+      scene.slabs.filter((s) => s.kind === 'floor').map((s) => s.id)
+    );
+    if (floorIds.size === 0) return false;
+    const hits = ray.intersectObjects(pickables, false);
+    return hits.some((h) => floorIds.has(h.object.userData.entityId as string));
+  }
+
+  /**
+   * Полный хит курсора: снапнутый план + сырой + стена.
+   * Высоты в хите нет сознательно: высота всегда из конфига инструмента,
+   * иначе гост врал бы (показывает одно, ставится другое).
+   */
+  function modelHit(ndc: THREE.Vector2): PlaceHit | null {
+    const raw = rawPlane(ndc);
+    if (!raw) return null;
+    const wall = wallHitAt(ndc);
+    return { plan: snapLocked(raw, null), raw, wallId: wall?.wallId };
+  }
+
+  /** Гост размещения следует за курсором (снап 1 см, доворот к стене). */
+  function updateToolGhost(hit: PlaceHit) {
+    const spec = placeTool;
+    if (!spec || !threeScene) return;
+    const isSphere = spec.layer === 'light';
+    ensureGhost(`tool:${spec.layer}:${spec.wMm}:${spec.dMm}:${spec.hMm}`, () =>
+      ghostMesh(
+        isSphere ? 'sphere' : 'box',
+        spec.wMm * K,
+        (isSphere ? spec.wMm : spec.hMm) * K,
+        (isSphere ? spec.wMm : spec.dMm) * K
+      )
+    );
+    if (!ghost) return;
+    let angle = (spec.rotDeg * Math.PI) / 180;
+    if (hit.wallId) {
+      const wa = wallAngleOf(hit.wallId);
+      if (wa !== null) {
+        angle = spec.layer === 'floorObject' ? wa + angle : wa;
+      }
+    }
+    const yM =
+      spec.layer === 'light'
+        ? LIGHT_GHOST_Y_M
+        : spec.layer === 'floorObject'
+          ? (spec.hMm * K) / 2
+          : spec.zMm * K + (spec.hMm * K) / 2;
+    ghost.position.set(hit.plan.x * K, yM, -hit.plan.y * K);
+    ghost.rotation.set(0, angle, 0);
+    ghostKey = `${hit.plan.x},${hit.plan.y}`;
+    ghostWall = hit.wallId ?? '';
+  }
+
+  /** Гост перетаскивания: габариты объекта, позиция — adjusted-хит. */
+  function updateDragGhost(plan: Vec2) {
+    if (!objDragId) return;
+    const dims = dragGhostDims(objDragId);
+    if (!dims) return;
+    ensureGhost(`drag:${objDragId}`, () =>
+      ghostMesh(dims.kind, dims.sx, dims.sy, dims.sz)
+    );
+    if (!ghost) return;
+    const c = objectCenterOf(objDragId);
+    ghost.position.set(plan.x * K, dims.yM, -plan.y * K);
+    ghost.rotation.set(0, c?.angleRad ?? 0, 0);
+    ghostKey = `${plan.x},${plan.y}`;
+  }
+
+  /** Хит с вычетом захвата: объект не прыгает к курсору, а едет за ним. */
+  function adjustedDragHit(ndc: THREE.Vector2): PlaceHit | null {
+    const base = modelHit(ndc);
+    if (!base || !objDragGrab) return base;
+    const raw = base.raw ?? base.plan;
+    const plan = snapLocked(
+      { x: raw.x - objDragGrab.x, y: raw.y - objDragGrab.y },
+      null
+    );
+    return { ...base, plan };
+  }
+
+  function cancelObjDrag() {
+    objDragId = null;
+    objDragGrab = null;
+    objDragHit = null;
+    hideGhost();
+    if (controls) controls.enabled = true;
+    if (canvas) canvas.style.cursor = '';
+  }
+
   function pick(e: MouseEvent) {
     if (!activeCamera || !canvas) return;
     // Игнорируем клики после orbit-drag: это вращение, а не выбор.
@@ -954,6 +1425,15 @@
     lastPointerTravel = 0;
     const ndc = ndcFromEvent(e);
     if (!ndc) return;
+    // Режим размещения: клик ставит объект, выбора нет.
+    if (placeTool && !objDragId) {
+      const hit = modelHit(ndc);
+      if (hit) {
+        hideGhost();
+        onPlace?.(hit);
+      }
+      return;
+    }
     // Хендлы скетча — первичны (гизмо поверх модели, даже под стенами).
     const handleId = handleAt(ndc);
     if (handleId) {
@@ -1154,6 +1634,27 @@
         return;
       }
     }
+    // Drag объекта текущего этапа (вне режима размещения): дальше
+    // порога — тянем, без движения — клик-выбор. Скетч важнее.
+    // Захват бьёт постановку: в place-режиме pointerdown по объекту
+    // начинает drag, клик по пустому — ставит (см. pick).
+    if (e.button === 0 && !sketch && draggableIds.length > 0) {
+      const ndc = ndcFromEvent(e);
+      const id = ndc ? modelObjectAt(ndc) : null;
+      if (id) {
+        objDragId = id;
+        dragging = false;
+        // Камеру гасим сразу: иначе первые пиксели жеста крутят вид.
+        if (controls) controls.enabled = false;
+        const c = objectCenterOf(id);
+        const raw = ndc ? rawPlane(ndc) : null;
+        objDragGrab =
+          c && raw ? { x: raw.x - c.x, y: raw.y - c.y } : { x: 0, y: 0 };
+        objDragHit = null;
+        canvas.setPointerCapture?.(e.pointerId);
+        return;
+      }
+    }
     // Рамка выбора: левая по пустому в режиме select (в draw — панорама).
     if (e.button === 0 && boxSelect && !segmentAt(ndc)) {
       const rel = containerPx(e);
@@ -1217,6 +1718,56 @@
 
   function onPointerMove(e: PointerEvent) {
     if (!canvas) return;
+    // Перетаскивание объекта: гост едет за курсором с вычетом захвата.
+    if (objDragId) {
+      if (!downPx) return;
+      const dist = Math.hypot(e.clientX - downPx.x, e.clientY - downPx.y);
+      if (!dragging && dist < DRAG_PX_THRESHOLD) return;
+      if (!dragging) {
+        dragging = true;
+        suppressClick = true;
+        if (controls) controls.enabled = false;
+        canvas.style.cursor = 'grabbing';
+        if (rubberGroup) rubberGroup.visible = false;
+      }
+      const ndc = ndcFromEvent(e);
+      if (!ndc) return;
+      const hit = adjustedDragHit(ndc);
+      if (!hit) return;
+      objDragHit = hit;
+      updateDragGhost(hit.plan);
+      return;
+    }
+    // Режим размещения: гост-превью под курсором (без зажатой кнопки).
+    // Гост — только над комнатой или стеной, иначе он врёт.
+    if (placeTool) {
+      if (e.buttons !== 0) {
+        hideGhost();
+        return;
+      }
+      const ndc = ndcFromEvent(e);
+      if (!ndc) return;
+      const hit = modelHit(ndc);
+      if (!hit || (!hit.wallId && !floorHitAt(ndc))) {
+        hideGhost();
+        if (canvas) canvas.style.cursor = '';
+        return;
+      }
+      updateToolGhost(hit);
+      canvas.style.cursor = 'crosshair';
+      return;
+    }
+    // Наведение на таскаемый объект: grab-курсор + preselect.
+    if (e.buttons === 0 && draggableIds.length > 0 && !sketch) {
+      const ndc = ndcFromEvent(e);
+      const id = ndc ? modelObjectAt(ndc) : null;
+      canvas.style.cursor = id ? 'grab' : '';
+      if (hoveredId !== id) {
+        hoveredId = id;
+        applyHighlight(selectedIds, hoveredId);
+      }
+      return;
+    }
     // Перенос грани целиком: дальше порога — тянем оба конца.
     if (dragSegId && dragSegOrig && dragStartRaw && downPx) {
       const dist = Math.hypot(e.clientX - downPx.x, e.clientY - downPx.y);
@@ -1395,7 +1946,30 @@
   }
 
   function onPointerUp(e: PointerEvent) {
-    // Финал рамки: отдать набор и съесть клик, чтобы не чистил выбор.
+    // Финал перетаскивания объекта: гост уже погашен, сцена
+    // перестроится сама, если операция staged (иначе ничего не сдвинулось).
+    if (objDragId) {
+      const id = objDragId;
+      const wasDragging = dragging;
+      const hit = objDragHit;
+      if (downPx) {
+        lastPointerTravel = Math.hypot(
+          e.clientX - downPx.x,
+          e.clientY - downPx.y
+        );
+      }
+      cancelObjDrag();
+      // Click после жеста гасим всегда: иначе он бы ставил новый объект.
+      suppressClick = true;
+      if (wasDragging && hit) {
+        onObjectMove?.(id, hit);
+      } else {
+        // Клик без движения — выбор объекта.
+        onSelect?.(id);
+      }
+      downPx = null;
+      return;
+    } // Финал рамки: отдать набор и съесть клик, чтобы не чистил выбор.
     if (boxing) {
       if (boxRect) onBoxSelect?.(idsInBox(boxRect));
       suppressClick = true;
@@ -1412,12 +1986,15 @@
   }
 
   function onPointerCancel(e: PointerEvent) {
+    if (objDragId) cancelObjDrag();
     finishDrag(e, false);
   }
 
   function onPointerLeave() {
     hoveredId = null;
     hideRubber();
+    hideGhost();
+    if (objDragId) cancelObjDrag();
     applyHighlight(selectedIds, null);
     if (canvas) canvas.style.cursor = '';
   }
@@ -1478,6 +2055,9 @@
   data-dims={sketchDims}
   data-rubber={rubberTip ? `${rubberTip.x},${rubberTip.y}` : ''}
   data-hover={hoveredId ?? ''}
+  data-place={placeTool ? placeTool.layer : ''}
+  data-ghost={ghostKey}
+  data-ghost-wall={ghostWall}
   data-sketch-closed={sketchClosed ? 'true' : 'false'}
 >
   <canvas

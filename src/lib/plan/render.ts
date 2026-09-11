@@ -4,11 +4,25 @@
  * Чистые данные без three.js: рендерер позже переводит миллиметры в свои
  * единицы и строит меши. Id сущностей сохраняются 1-в-1 — по ним работает
  * выбор объектов и будущая подсветка конфликтов.
+ *
+ * Этапы 5a–11 добавляют к стенам/плитам: проёмы (вырезы в стенах),
+ * напольную мебель (боксы на полу), навесные объекты, электрику и свет.
+ * Все позиции — производные от параметрических якорей, в сцене только
+ * готовые миллиметры для отрисовки.
  */
 
 import { openRing, pointInPolygon, wallLengthMm } from './geometry';
 import type { Vec2 } from './geometry';
 import type { ApartmentState, Wall } from './model';
+import { openingCenterMm, openingEndsMm, type Opening } from './openings';
+import { floorAngleRad, floorCenterMm, wallMountMm } from './furnish';
+import {
+  rectInFrame,
+  subtractOpenings,
+  wallDir,
+  wallFootprint,
+  wallNormal,
+} from './polygon';
 
 /**
  * Стена как бокс. ВАЖНО: контур скетча — ВНУТРЕННЯЯ грань стен:
@@ -47,6 +61,24 @@ export interface RenderSlabPoly {
   points: Vec2[];
 }
 
+/**
+ * Кусок стены между проёмами — готовый бокс для честных дыр.
+ * Стена с N проёмами даёт N+1 сегмент (проёмы сквозные, на всю толщину):
+ * вместо бокса с тёмной накладкой рендерятся только куски, проём пуст.
+ * lengthMm уже включает miter-расширения крайних кусков.
+ */
+export interface RenderWallSeg {
+  kind: 'wallSeg';
+  wallId: string;
+  segIndex: number;
+  cxMm: number;
+  cyMm: number;
+  lengthMm: number;
+  angleRad: number;
+  thicknessMm: number;
+  heightMm: number;
+}
+
 export interface RenderBounds {
   minX: number;
   minY: number;
@@ -54,9 +86,83 @@ export interface RenderBounds {
   maxY: number;
 }
 
+/** Проём как вырез в стене: центр + концы на оси стены. */
+export interface RenderOpening {
+  kind: 'opening';
+  id: string;
+  wallId: string;
+  openingKind: Opening['kind'];
+  cxMm: number;
+  cyMm: number;
+  angleRad: number;
+  widthMm: number;
+  heightMm: number;
+  sillMm: number;
+  p0: Vec2;
+  p1: Vec2;
+}
+
+/** Напольный объект как бокс на полу. */
+export interface RenderFloorBox {
+  kind: 'floorObject';
+  id: string;
+  cxMm: number;
+  cyMm: number;
+  angleRad: number;
+  wMm: number;
+  dMm: number;
+  hMm: number;
+  label: string;
+}
+
+/** Навесной объект: точка на стене + высота. */
+export interface RenderWallMount {
+  kind: 'wallObject';
+  id: string;
+  xMm: number;
+  yMm: number;
+  zMm: number;
+  angleRad: number;
+  wMm: number;
+  hMm: number;
+  depthMm: number;
+  label: string;
+}
+
+/** Электроточка: точка на стене + высота. */
+export interface RenderElec {
+  kind: 'elec';
+  id: string;
+  elecKind: 'socket' | 'switch';
+  xMm: number;
+  yMm: number;
+  zMm: number;
+  label: string;
+}
+
+/** Светильник: точка потолка в плане. */
+export interface RenderLight {
+  kind: 'light';
+  id: string;
+  lightKind: string;
+  xMm: number;
+  yMm: number;
+  label: string;
+}
+
 export interface RenderScene {
   walls: RenderWallBox[];
   slabs: RenderSlabPoly[];
+  openings: RenderOpening[];
+  floorObjects: RenderFloorBox[];
+  wallObjects: RenderWallMount[];
+  elec: RenderElec[];
+  lights: RenderLight[];
+  /**
+   * Куски стен между проёмами (честные дыры). Рендерятся вместо
+   * цельных боксов + тёмных накладок; выбор/подсветка — по wallId.
+   */
+  wallSegs: RenderWallSeg[];
   /** Габариты всего содержимого в мм — для наведения камеры. */
   bounds: RenderBounds;
 }
@@ -68,6 +174,82 @@ export const EMPTY_SCENE_BOUNDS: RenderBounds = {
   maxX: 6000,
   maxY: 4000,
 };
+
+const roundUm = (v: number): number => Math.round(v * 1000) / 1000 + 0;
+
+/**
+ * Куски стен между проёмами через Clipper-вычитание.
+ *
+ * Фрейм расширен miter-концами ([-extA, len+extB]), проёмы вырезаются
+ * прямоугольниками на всю толщину. Сквозной вырез корректно даёт два
+ * куска (ручная интервальная математика здесь не нужна — Clipper сам
+ * режет по касающимся границам). Куски < 1 мм отбрасываются как пыль.
+ */
+export function wallSegs(state: ApartmentState): RenderWallSeg[] {
+  const out: RenderWallSeg[] = [];
+  const walls = Object.values(state.walls).sort((a, b) =>
+    a.id < b.id ? -1 : 1
+  );
+  for (const wall of walls) {
+    const len = wallLengthMm(wall.a, wall.b);
+    const angleRad = Math.atan2(wall.b.y - wall.a.y, wall.b.x - wall.a.x);
+    const outward = outwardNormalMm(state, wall);
+    const { extA, extB } = miterExtensions(state, wall);
+    const ox = outward ? (outward.x * wall.thicknessMm) / 2 : 0;
+    const oy = outward ? (outward.y * wall.thicknessMm) / 2 : 0;
+    const dir = wallDir(wall);
+    const n = wallNormal(dir);
+    const h = wall.thicknessMm / 2;
+    const origin = { x: wall.a.x - dir.x * extA, y: wall.a.y - dir.y * extA };
+    const fullLen = len + extA + extB;
+    const fp = wallFootprint(
+      {
+        ...wall,
+        a: origin,
+        b: { x: origin.x + dir.x * fullLen, y: origin.y + dir.y * fullLen },
+      },
+      wall.thicknessMm
+    );
+    const holes = Object.values(state.openings ?? {})
+      .filter((o) => o.wallId === wall.id)
+      .sort((a, b) => a.offsetMm - b.offsetMm)
+      .map((o) =>
+        rectInFrame(
+          origin,
+          dir,
+          n,
+          extA + o.offsetMm,
+          -h,
+          extA + o.offsetMm + o.widthMm,
+          h
+        )
+      );
+    const spans = subtractOpenings(fp, holes)
+      .map((p) => {
+        const dots = p.map(
+          (q) => (q.x - origin.x) * dir.x + (q.y - origin.y) * dir.y
+        );
+        return [Math.min(...dots), Math.max(...dots)];
+      })
+      .filter(([s0, s1]) => s1 - s0 >= 1)
+      .sort((a, b) => a[0] - b[0]);
+    spans.forEach(([s0, s1], i) => {
+      const mid = (s0 + s1) / 2;
+      out.push({
+        kind: 'wallSeg',
+        wallId: wall.id,
+        segIndex: i,
+        cxMm: roundUm(origin.x + dir.x * mid + ox),
+        cyMm: roundUm(origin.y + dir.y * mid + oy),
+        lengthMm: roundUm(s1 - s0),
+        angleRad,
+        thicknessMm: wall.thicknessMm,
+        heightMm: wall.heightMm,
+      });
+    });
+  }
+  return out;
+}
 
 export function modelToScene(state: ApartmentState): RenderScene {
   const walls: RenderWallBox[] = Object.values(state.walls).map((w) => {
@@ -109,12 +291,123 @@ export function modelToScene(state: ApartmentState): RenderScene {
   }));
   slabs.sort((a, b) => (a.id < b.id ? -1 : 1));
 
-  return { walls, slabs, bounds: sceneBounds(walls, slabs) };
+  const openings: RenderOpening[] = Object.values(state.openings ?? {})
+    .map((o) => {
+      const wall = state.walls[o.wallId];
+      if (!wall) return null;
+      const c = openingCenterMm(wall, o);
+      const { p0, p1 } = openingEndsMm(wall, o);
+      return {
+        kind: 'opening' as const,
+        id: o.id,
+        wallId: o.wallId,
+        openingKind: o.kind,
+        cxMm: Math.round(c.x),
+        cyMm: Math.round(c.y),
+        angleRad: Math.atan2(wall.b.y - wall.a.y, wall.b.x - wall.a.x),
+        widthMm: o.widthMm,
+        heightMm: o.heightMm,
+        sillMm: o.sillMm,
+        p0: { ...p0 },
+        p1: { ...p1 },
+      };
+    })
+    .filter((x): x is RenderOpening => x !== null)
+    .sort((a, b) => (a.id < b.id ? -1 : 1));
+
+  const floorObjects: RenderFloorBox[] = Object.values(state.floorObjects ?? {})
+    .map((o) => {
+      const c = floorCenterMm(state, o);
+      if (!c) return null;
+      return {
+        kind: 'floorObject' as const,
+        id: o.id,
+        cxMm: Math.round(c.x),
+        cyMm: Math.round(c.y),
+        angleRad: floorAngleRad(state, o),
+        wMm: o.wMm,
+        dMm: o.dMm,
+        hMm: o.hMm,
+        label: o.label,
+      };
+    })
+    .filter((x): x is RenderFloorBox => x !== null)
+    .sort((a, b) => (a.id < b.id ? -1 : 1));
+
+  const wallObjects: RenderWallMount[] = Object.values(state.wallObjects ?? {})
+    .map((o) => {
+      const m = wallMountMm(state.walls, o);
+      if (!m) return null;
+      const wall = state.walls[o.anchor.wallId];
+      return {
+        kind: 'wallObject' as const,
+        id: o.id,
+        xMm: Math.round(m.x),
+        yMm: Math.round(m.y),
+        zMm: m.zMm,
+        angleRad: wall
+          ? Math.atan2(wall.b.y - wall.a.y, wall.b.x - wall.a.x)
+          : 0,
+        wMm: o.wMm,
+        hMm: o.hMm,
+        depthMm: o.depthMm,
+        label: o.label,
+      };
+    })
+    .filter((x): x is RenderWallMount => x !== null)
+    .sort((a, b) => (a.id < b.id ? -1 : 1));
+
+  const elec: RenderElec[] = Object.values(state.elecPoints ?? {})
+    .map((p) => {
+      const wall = state.walls[p.wallId];
+      if (!wall) return null;
+      const len = wallLengthMm(wall.a, wall.b);
+      if (len < 1e-9) return null;
+      const t = p.alongMm / len;
+      return {
+        kind: 'elec' as const,
+        id: p.id,
+        elecKind: p.kind,
+        xMm: Math.round(wall.a.x + (wall.b.x - wall.a.x) * t),
+        yMm: Math.round(wall.a.y + (wall.b.y - wall.a.y) * t),
+        zMm: p.heightMm,
+        label: p.purpose,
+      };
+    })
+    .filter((x): x is RenderElec => x !== null)
+    .sort((a, b) => (a.id < b.id ? -1 : 1));
+
+  const lights: RenderLight[] = Object.values(state.luminaires ?? {})
+    .map((l) => ({
+      kind: 'light' as const,
+      id: l.id,
+      lightKind: l.kind,
+      xMm: l.xMm,
+      yMm: l.yMm,
+      label: l.id,
+    }))
+    .sort((a, b) => (a.id < b.id ? -1 : 1));
+
+  return {
+    walls,
+    slabs,
+    openings,
+    floorObjects,
+    wallObjects,
+    elec,
+    lights,
+    wallSegs: wallSegs(state),
+    bounds: sceneBounds(walls, slabs, [
+      ...floorObjects.map((f) => ({ x: f.cxMm, y: f.cyMm })),
+      ...lights.map((l) => ({ x: l.xMm, y: l.yMm })),
+    ]),
+  };
 }
 
 function sceneBounds(
   walls: RenderWallBox[],
-  slabs: RenderSlabPoly[]
+  slabs: RenderSlabPoly[],
+  extra: Vec2[] = []
 ): RenderBounds {
   let minX = Infinity;
   let minY = Infinity;
@@ -141,6 +434,12 @@ function sceneBounds(
       maxY = Math.max(maxY, p.y);
     }
   }
+  for (const p of extra) {
+    minX = Math.min(minX, p.x);
+    maxX = Math.max(maxX, p.x);
+    minY = Math.min(minY, p.y);
+    maxY = Math.max(maxY, p.y);
+  }
 
   if (!Number.isFinite(minX)) return { ...EMPTY_SCENE_BOUNDS };
   // Тригонометрия даёт эпсилон-хвосты (cos 90° ≈ 6e-17) — режем до мкм.
@@ -148,9 +447,17 @@ function sceneBounds(
   return { minX: q(minX), minY: q(minY), maxX: q(maxX), maxY: q(maxY) };
 }
 
-/** Все выбираемые id сцены (стены + плиты) — для списков и тестов. */
+/** Все выбираемые id сцены — для списков и тестов. */
 export function selectableIds(scene: RenderScene): string[] {
-  return [...scene.walls.map((w) => w.id), ...scene.slabs.map((s) => s.id)];
+  return [
+    ...scene.walls.map((w) => w.id),
+    ...scene.slabs.map((s) => s.id),
+    ...scene.openings.map((o) => o.id),
+    ...scene.floorObjects.map((o) => o.id),
+    ...scene.wallObjects.map((o) => o.id),
+    ...scene.elec.map((e) => e.id),
+    ...scene.lights.map((l) => l.id),
+  ];
 }
 
 /**

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Layers, Box, PencilLine } from '@lucide/svelte';
   import type { Feature } from './history';
+  import { stageLabel } from './history';
 
   interface Props {
     features: Feature[];
@@ -29,6 +30,7 @@
           <Box size={14} />
           <span class="font-mono text-xs">#{f.index + 1}</span>
           <span class="text-xs">{f.label}</span>
+          <span class="badge badge-xs opacity-70">{stageLabel(f.stage)}</span>
           <span class="text-xs opacity-60">{f.ops.length} оп.</span>
         </button>
       </li>
