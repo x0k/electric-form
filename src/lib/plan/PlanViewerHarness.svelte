@@ -11,7 +11,7 @@
 <div style="width: 640px; height: 480px;">
   <PlanViewer
     {scene}
-    {selectedId}
+    selectedIds={selectedId ? [selectedId] : []}
     onSelect={(id) => {
       lastNotified = id;
       selectedId = id;

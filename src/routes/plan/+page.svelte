@@ -1,61 +1,125 @@
 <script lang="ts">
-  import PlanViewer from '#lib/plan/PlanViewer.svelte';
-  import { buildSampleFlat } from '#lib/plan/sample';
-  import { modelToScene, selectableIds } from '#lib/plan/render';
-  import { toggleEntity } from '#lib/plan/selection';
+  import SketchEditor from '#lib/plan/SketchEditor.svelte';
+  import ModelEditor from '#lib/plan/ModelEditor.svelte';
+  import { modelToScene } from '#lib/plan/render';
+  import { DEFAULT_LAYOUT_OPTS } from '#lib/plan/layout';
+  import {
+    commitDraft,
+    createHistory,
+    editFeature,
+    headState,
+    stageOp,
+    stateAt,
+    type PlanHistory,
+  } from '#lib/plan/history';
+  import type { Operation } from '#lib/plan/operations';
+  import type { Vec2 } from '#lib/plan/geometry';
 
-  const scene = modelToScene(buildSampleFlat());
-  const ids = selectableIds(scene);
-  let selectedId: string | null = $state(null);
+  /**
+   * Страница — только автомат стадий и история:
+   * sketch-стадия → commit → модель-стадия (изометрия).
+   * Вся механика живёт в SketchEditor / ModelEditor.
+   */
 
-  function describe(id: string): string {
-    const wall = scene.walls.find((w) => w.id === id);
-    if (wall) {
-      return `Стена ${(wall.lengthMm / 1000).toFixed(1)} м`;
+  type Stage = 'sketch' | 'model';
+
+  let history: PlanHistory = $state(createHistory());
+  let stage: Stage = $state('sketch');
+  let previewIndex: number | null = $state(null);
+  let message: string | null = $state(null);
+  // Черновик для правки: outline головы + имя; null — чистый контур.
+  let editInitial: { outline: Vec2[]; roomName: string } | null = $state(null);
+  let sketchKey = $state(0);
+
+  const committed = $derived(history.features.length > 0);
+
+  /** Сцена: голова истории или просмотр выбранной Feature. */
+  const scene = $derived.by(() => {
+    const state =
+      previewIndex !== null
+        ? stateAt(history, previewIndex).state
+        : headState(history);
+    return modelToScene(state);
+  });
+
+  function handleCommitSketch(payload: { ops: Operation[]; roomName: string }) {
+    if (!committed) {
+      let h = history;
+      for (const op of payload.ops) h = stageOp(h, op);
+      const c = commitDraft(h, {
+        stage: 'layout',
+        label: `Планировка: ${payload.roomName}`,
+      });
+      if (!c.ok) {
+        message = `Commit отклонён: ${c.error.message}`;
+        return;
+      }
+      history = c.history;
+      message =
+        'Стены возведены. Изометрия — следующий шаг: расстановка объектов.';
+    } else {
+      const e = editFeature(history, 0, payload.ops);
+      if (!e.ok) {
+        message = `Правка отклонена: ${e.error.message}`;
+        return;
+      }
+      history = e.result.history;
+      message = 'Планировка обновлена, зависимые шаги пересчитаны.';
     }
-    const slab = scene.slabs.find((s) => s.id === id);
-    if (slab) return slab.kind === 'floor' ? 'Пол' : 'Потолок';
-    return id;
+    editInitial = null;
+    previewIndex = null;
+    stage = 'model';
+  }
+
+  function handleEditLayout() {
+    const room = headState(history).rooms[DEFAULT_LAYOUT_OPTS.roomId];
+    if (!room) {
+      message = 'В голове истории нет помещения для правки.';
+      return;
+    }
+    editInitial = { outline: room.outline, roomName: room.name };
+    sketchKey += 1;
+    previewIndex = null;
+    message = null;
+    stage = 'sketch';
   }
 </script>
 
 <svelte:head>
-  <title>Планировка — 3D-просмотр</title>
+  <title>Планировка — редактор</title>
 </svelte:head>
 
-<main class="mx-auto flex min-h-screen max-w-6xl flex-col gap-4 p-4">
-  <header class="flex items-baseline justify-between">
-    <h1 class="text-2xl font-bold">Планировка — тестовая модель</h1>
-    <a href="/" class="link link-primary">← Проекты</a>
-  </header>
-  <p class="text-sm opacity-70">
-    Этап 2: сцена из Domain Model, свободная орбитальная камера, выбор объектов
-    кликом по сцене или по списку.
-  </p>
+<main class="relative h-screen w-full overflow-hidden">
+  {#if stage === 'sketch'}
+    {#key sketchKey}
+      <SketchEditor
+        initialOutline={editInitial?.outline ?? null}
+        initialRoomName={editInitial?.roomName ?? 'Комната'}
+        {committed}
+        onCommit={handleCommitSketch}
+      />
+    {/key}
+  {:else}
+    <ModelEditor
+      {scene}
+      features={history.features}
+      {previewIndex}
+      onTogglePreview={(i) => (previewIndex = previewIndex === i ? null : i)}
+      onBackToHead={() => {
+        previewIndex = null;
+        message = null;
+      }}
+      onEditLayout={handleEditLayout}
+    />
+  {/if}
 
-  <div class="flex flex-col gap-4 md:flex-row">
-    <div class="h-[60vh] min-h-96 flex-1 rounded-box border border-base-300">
-      <PlanViewer {scene} {selectedId} onSelect={(id) => (selectedId = id)} />
-    </div>
-
-    <aside class="w-full shrink-0 md:w-64">
-      <h2 class="mb-2 font-semibold">Объекты ({ids.length})</h2>
-      <ul class="menu w-full rounded-box bg-base-200">
-        {#each ids as id (id)}
-          <li>
-            <button
-              class:active={selectedId === id}
-              onclick={() => (selectedId = toggleEntity(selectedId, id))}
-            >
-              <span class="font-mono text-xs">{id}</span>
-              <span class="text-xs opacity-70">{describe(id)}</span>
-            </button>
-          </li>
-        {/each}
-      </ul>
-      <p class="mt-2 text-sm">
-        Выбрано: <strong>{selectedId ?? '—'}</strong>
+  {#if message}
+    <div
+      class="pointer-events-none absolute bottom-3 left-1/2 z-20 max-w-md -translate-x-1/2"
+    >
+      <p class="alert alert-sm py-2 text-sm shadow-xl" role="status">
+        {message}
       </p>
-    </aside>
-  </div>
+    </div>
+  {/if}
 </main>

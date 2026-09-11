@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   GRID_MM,
   SNAP_STEPS_MM,
+  axisAngleClean,
   isPointOnGrid,
   isPointOnStep,
+  pointInPolygon,
   polygonAreaMm2,
   polygonPerimeterMm,
   snapMm,
@@ -82,5 +84,30 @@ describe('geometry: укрупнённая сетка для мебели', () =
   it('некратный базовой сетке шаг отклоняется', () => {
     expect(() => snapMmToStep(100, 15)).toThrow();
     expect(() => snapMmToStep(100, 0)).toThrow();
+  });
+
+  it('axisAngleClean отличает чистые оси от диагоналей', () => {
+    const o = { x: 0, y: 0 };
+    expect(axisAngleClean({ x: 6000, y: 30 }, o)).toBe('h');
+    expect(axisAngleClean({ x: 30, y: 4000 }, o)).toBe('v');
+    expect(axisAngleClean({ x: -6000, y: -20 }, o)).toBe('h');
+    expect(axisAngleClean({ x: 3000, y: 3000 }, o)).toBeNull();
+    expect(axisAngleClean({ x: 0, y: 0 }, o)).toBeNull();
+  });
+
+  it('pointInPolygon отличает внутри/снаружи/границу', () => {
+    const rect = [
+      { x: 0, y: 0 },
+      { x: 6000, y: 0 },
+      { x: 6000, y: 4000 },
+      { x: 0, y: 4000 },
+    ];
+    expect(pointInPolygon({ x: 3000, y: 2000 }, rect)).toBe(true);
+    expect(pointInPolygon({ x: -10, y: 2000 }, rect)).toBe(false);
+    expect(pointInPolygon({ x: 3000, y: 5000 }, rect)).toBe(false);
+    // Та же площадь независимо от обхода.
+    const cw = [...rect].reverse();
+    expect(pointInPolygon({ x: 3000, y: 2000 }, cw)).toBe(true);
+    expect(pointInPolygon({ x: 7000, y: 2000 }, cw)).toBe(false);
   });
 });

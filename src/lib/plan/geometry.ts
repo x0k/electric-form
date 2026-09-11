@@ -123,3 +123,40 @@ export function openRing(points: Vec2[]): Vec2[] {
   if (isClosedRing(points)) return points.slice(0, -1);
   return points;
 }
+
+/** Точка строго внутри полигона (ray casting; граница — снаружи). */
+export function pointInPolygon(p: Vec2, polygon: Vec2[]): boolean {
+  const ring = openRing(polygon);
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const a = ring[i];
+    const b = ring[j];
+    if (a.y > p.y !== b.y > p.y) {
+      const x = a.x + ((p.y - a.y) / (b.y - a.y)) * (b.x - a.x);
+      if (p.x < x) inside = !inside;
+    }
+  }
+  return inside;
+}
+
+/** Допуск авто-фиксации оси по углу сырого отрезка, градусы. */
+export const AXIS_AUTO_TOL_DEG = 5;
+
+/**
+ * Чисто ли сырой отрезок идёт вдоль оси (для авто-constraints).
+ * Снапнутые координаты тут врут (сетка дотягивает диагонали до осей),
+ * поэтому смотрим угол СЫРОГО отрезка от origin.
+ */
+export function axisAngleClean(
+  raw: Vec2,
+  origin: Vec2,
+  tolDeg: number = AXIS_AUTO_TOL_DEG
+): 'h' | 'v' | null {
+  const dx = raw.x - origin.x;
+  const dy = raw.y - origin.y;
+  if (dx === 0 && dy === 0) return null;
+  const ang = (Math.abs(Math.atan2(dy, dx)) * 180) / Math.PI;
+  if (ang <= tolDeg || ang >= 180 - tolDeg) return 'h';
+  if (Math.abs(ang - 90) <= tolDeg) return 'v';
+  return null;
+}

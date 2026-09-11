@@ -14,3 +14,8 @@ export * from './history';
 export * from './render';
 export * from './selection';
 export * from './sample';
+export * from './sketch';
+export * from './camera';
+export * from './viewport';
+export * from './layout';
+export * from './gcs';

@@ -17,6 +17,9 @@ importers:
       '@lucide/svelte':
         specifier: ^1.0.0
         version: 1.42.0(svelte@5.57.0(@typescript-eslint/types@8.70.0))
+      '@salusoft89/planegcs':
+        specifier: ^1.2.0
+        version: 1.2.0
       '@xyflow/svelte':
         specifier: ^1.6.6
         version: 1.6.6(svelte@5.57.0(@typescript-eslint/types@8.70.0))
@@ -506,6 +509,9 @@ packages:
 
   '@rolldown/pluginutils@1.0.1':
     resolution: {integrity: sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw==}
+
+  '@salusoft89/planegcs@1.2.0':
+    resolution: {integrity: sha512-NcdWJnJRCnIDvM9yJD98Jm8qaK//wRqMEbJ0WtibKnhbzI484TjIEbYD6EVUZejndXGC9yBkuKgqXg+9buzi6Q==}
 
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
@@ -2180,6 +2186,8 @@ snapshots:
     optional: true
 
   '@rolldown/pluginutils@1.0.1': {}
+
+  '@salusoft89/planegcs@1.2.0': {}
 
   '@standard-schema/spec@1.1.0': {}
 
