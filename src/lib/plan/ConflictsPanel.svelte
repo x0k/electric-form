@@ -1,6 +1,7 @@
 <script lang="ts">
   import { TriangleAlert } from '@lucide/svelte';
   import type { PlanConflict } from './conflicts';
+  import { removeOpForEntity } from './conflicts';
   import type { FeatureConflict } from './history';
   import type { Operation } from './operations';
 
@@ -19,27 +20,8 @@
 
   /** Быстрое разрешение: удалить сущность-нарушителя (первый id). */
   function resolve(c: PlanConflict) {
-    const id = c.entityIds[0];
-    if (
-      id.startsWith('sk') ||
-      id.startsWith('sw') ||
-      id.startsWith('auto-sw') ||
-      id.startsWith('auto-sk')
-    ) {
-      onOp({ type: 'removeElecPoint', pointId: id });
-    } else if (
-      id.startsWith('lt') ||
-      id.startsWith('auto-lt') ||
-      id.startsWith('auto-spot')
-    ) {
-      onOp({ type: 'removeLuminaire', luminaireId: id });
-    } else if (id.startsWith('d') || id.startsWith('win')) {
-      onOp({ type: 'deleteOpening', openingId: id });
-    } else if (id.startsWith('m')) {
-      onOp({ type: 'removeWallObject', objectId: id });
-    } else if (id.startsWith('f')) {
-      onOp({ type: 'removeFloorObject', objectId: id });
-    }
+    const op = removeOpForEntity(c.entityIds[0]);
+    if (op) onOp(op);
   }
 </script>
 

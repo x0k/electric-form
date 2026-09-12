@@ -50,6 +50,12 @@ export interface PlaceHit {
   raw?: Vec2;
   /** Стена под курсором (попадание в меш стены), если есть. */
   wallId?: string;
+  /**
+   * Точка попадания в стену, мм плана (сырая). Для привязок вдоль стены
+   * берём ЕЁ, а не проекцию на пол: иначе параллакс высоких стен уводит
+   * центр на метры от курсора. Нет стены — фолбэк на plan.
+   */
+  wallPoint?: Vec2;
 }
 
 export type PlaceResult =
@@ -66,6 +72,11 @@ export function projectAlong(wall: Wall, p: Vec2): number {
   const dx = (wall.b.x - wall.a.x) / len;
   const dy = (wall.b.y - wall.a.y) / len;
   return (p.x - wall.a.x) * dx + (p.y - wall.a.y) * dy;
+}
+
+/** Координата вдоль стены для привязки: точка стены точнее проекции на пол. */
+function alongOf(wall: Wall, hit: PlaceHit): number {
+  return projectAlong(wall, hit.wallPoint ?? hit.plan);
 }
 
 /**
@@ -130,7 +141,7 @@ export function placeFloorObject(
     const anchor = {
       type: 'wall' as const,
       wallId: wall.id,
-      alongMm: snapMm(projectAlong(wall, hit.plan)),
+      alongMm: snapMm(alongOf(wall, hit)),
       fromWallMm: 0,
       rotationDeg,
     };
@@ -187,7 +198,7 @@ function wallAlongOrFail(
 ): { wall: Wall; alongMm: number } | { error: string } {
   const wall = hit.wallId ? state.walls[hit.wallId] : undefined;
   if (!wall) return { error: `${what}: кликните по стене.` };
-  return { wall, alongMm: snapMm(projectAlong(wall, hit.plan)) };
+  return { wall, alongMm: snapMm(alongOf(wall, hit)) };
 }
 
 export function placeWallObject(
@@ -297,7 +308,7 @@ export function placeOpening(
 ): PlaceResult {
   const wall = hit.wallId ? state.walls[hit.wallId] : undefined;
   if (!wall) return fail('Проём: кликните по стене.');
-  const along = projectAlong(wall, hit.plan);
+  const along = alongOf(wall, hit);
   const id = opts.id ?? uniqueId(state, opts.kind === 'door' ? 'd' : 'win');
   const draft = {
     id,
@@ -350,7 +361,7 @@ export function moveObject(
       hit.wallId && state.walls[hit.wallId] ? hit.wallId : a.wallId;
     const wall = state.walls[targetId];
     if (!wall) return fail(`Стена "${targetId}" не найдена.`);
-    const alongMm = snapMm(projectAlong(wall, hit.plan));
+    const alongMm = snapMm(alongOf(wall, hit));
     let fromWallMm = 0;
     if (targetId === a.wallId) {
       const depth = depthFromWall(state, wall, hit.plan);
@@ -376,7 +387,7 @@ export function moveObject(
     const anchor = {
       ...wo.anchor,
       wallId,
-      alongMm: snapMm(projectAlong(wall, hit.plan)),
+      alongMm: snapMm(alongOf(wall, hit)),
     };
     const err = validateWallAnchor(state.walls, anchor, wo.wMm);
     if (err) return fail(err);
@@ -396,7 +407,7 @@ export function moveObject(
     const draft = {
       ...ep,
       wallId,
-      alongMm: snapMm(projectAlong(wall, hit.plan)),
+      alongMm: snapMm(alongOf(wall, hit)),
     };
     const err = validateElec(state.walls, state.elecGroups ?? {}, draft);
     if (err) return fail(err);
@@ -433,7 +444,7 @@ export function moveObject(
     if (!wall) return fail(`Стена "${op.wallId}" не найдена.`);
     const draft = {
       ...op,
-      offsetMm: snapMm(projectAlong(wall, hit.plan) - op.widthMm / 2),
+      offsetMm: snapMm(alongOf(wall, hit) - op.widthMm / 2),
     };
     const err = validateOpening(
       state.walls,

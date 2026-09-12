@@ -19,27 +19,57 @@ async function canvasPoint(
   return { x: box!.x + box!.width * fx, y: box!.y + box!.height * fy };
 }
 
+/** Точка лежит на чистом канвасе, а не на оверлее (тулбар, панели). */
+async function onCanvasPoint(
+  page: Page,
+  x: number,
+  y: number
+): Promise<boolean> {
+  return page.evaluate(
+    ([px, py]) =>
+      document.elementFromPoint(px, py)?.getAttribute('data-testid') ===
+      'plan-canvas',
+    [x, y]
+  );
+}
+
+/** Два кадра — приложение сбросило состояние в DOM (ребилд сцены синхронен).
+ * Дешевле и точнее любых таймаутов: после settle чтение черновика истинно. */
+async function settle(page: Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      )
+  );
+}
+
 /** Свип курсором: клик по стене, пока дверь не встанет (у торцов — простенок). */
 async function placeDoorOnWall(
   page: Page
 ): Promise<{ fx: number; fy: number; wall: string }> {
   const viewer = page.getByTestId('plan-viewer');
-  // Счётчик черновика — атрибут кнопки Commit (видимой строки нет).
   const draft = page.getByTestId('commit-stage');
+  const draftCount = () =>
+    draft.getAttribute('data-draft-count').then((v) => Number(v ?? 0));
+  await settle(page);
   for (let gy = 0.08; gy <= 0.96; gy += 0.07) {
     for (let gx = 0.08; gx <= 0.96; gx += 0.07) {
       const p = await canvasPoint(page, gx, gy);
+      // Мимо оверлеев (тулбар!): клик только по чистому канвасу,
+      // иначе можно выключить инструмент вместо постановки.
+      if (!(await onCanvasPoint(page, p.x, p.y))) continue;
       await page.mouse.move(p.x, p.y);
       const w = await viewer.getAttribute('data-ghost-wall');
       if (!w) continue;
+      const before = await draftCount();
       await page.mouse.click(p.x, p.y);
-      try {
-        await expect(draft).toHaveAttribute('data-draft-count', '1', {
-          timeout: 800,
-        });
+      // Черновик вырос именно от этого клика: после settle чтение истинно.
+      // Постановка центрирует дверь под курсором (точка стены, не пол),
+      // так что точка заведомо на двери.
+      await settle(page);
+      if ((await draftCount()) === before + 1) {
         return { fx: gx, fy: gy, wall: w };
-      } catch {
-        continue;
       }
     }
   }
@@ -273,4 +303,110 @@ test('гизмо: торец двери тянет ширину', async ({ page 
   const after = widthOf(await panel.innerText());
   expect(after).toBeLessThan(900);
   expect(after).toBeGreaterThanOrEqual(600);
+
+  // Гост: на стене зелёный, в середине комнаты красный.
+  // Стену ищем заново: в точке постановки теперь проём, а не стена.
+  let wallPt: { x: number; y: number } | null = null;
+  for (let gy = 0.08; gy <= 0.96 && !wallPt; gy += 0.07) {
+    for (let gx = 0.08; gx <= 0.96; gx += 0.07) {
+      const p = await canvasPoint(page, gx, gy);
+      if (!(await onCanvasPoint(page, p.x, p.y))) continue;
+      await page.mouse.move(p.x, p.y);
+      if (await viewer.getAttribute('data-ghost-wall')) {
+        wallPt = p;
+        break;
+      }
+    }
+  }
+  expect(wallPt).not.toBeNull();
+  await expect(viewer).toHaveAttribute('data-ghost-ok', 'true');
+  const mid = await canvasPoint(page, 0.5, 0.5);
+  await page.mouse.move(mid.x, mid.y);
+  await expect(viewer).toHaveAttribute('data-ghost-ok', 'false');
+  await expect(viewer).not.toHaveAttribute('data-ghost', '');
+
+  // Touchpad без кнопок в изометрии: Alt крутит, Ctrl+Shift зумит.
+  const camOf = async () => await viewer.getAttribute('data-cam');
+  const thetaOf = (s: string | null) => Number(s!.split(',')[3].slice(2));
+  const zoomOf = (s: string | null) => s!.split(',')[2];
+  const box2 = await canvas.boundingBox();
+  expect(box2).not.toBeNull();
+  const cam0 = await camOf();
+  await page.keyboard.down('Alt');
+  await page.mouse.move(
+    box2!.x + box2!.width * 0.4,
+    box2!.y + box2!.height * 0.5
+  );
+  await page.mouse.move(
+    box2!.x + box2!.width * 0.6,
+    box2!.y + box2!.height * 0.5,
+    { steps: 10 }
+  );
+  await page.keyboard.up('Alt');
+  await expect
+    .poll(async () => thetaOf(await camOf()), { timeout: 5000 })
+    .not.toBe(thetaOf(cam0));
+  const cam1 = await camOf();
+  await page.keyboard.down('Control');
+  await page.keyboard.down('Shift');
+  await page.mouse.move(
+    box2!.x + box2!.width * 0.5,
+    box2!.y + box2!.height * 0.4
+  );
+  await page.mouse.move(
+    box2!.x + box2!.width * 0.5,
+    box2!.y + box2!.height * 0.6,
+    { steps: 10 }
+  );
+  await page.keyboard.up('Shift');
+  await page.keyboard.up('Control');
+  await expect
+    .poll(async () => zoomOf(await camOf()), { timeout: 5000 })
+    .not.toBe(zoomOf(cam1));
+
+  // Голая левая камеру не трогает (Touchpad style) и ничего не двигает.
+  const camStill = await camOf();
+  await page.mouse.move(
+    box2!.x + box2!.width * 0.5,
+    box2!.y + box2!.height * 0.85
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    box2!.x + box2!.width * 0.6,
+    box2!.y + box2!.height * 0.75,
+    {
+      steps: 10,
+    }
+  );
+  await page.mouse.up();
+  await expect(viewer).toHaveAttribute('data-cam', camStill!);
+  await expect(page.getByTestId('commit-stage')).toHaveAttribute(
+    'data-draft-count',
+    '2'
+  );
+
+  // Esc гасит инструмент и сбрасывает выбор (как в скетче):
+  // ручки гизмо исчезают вместе с выбором.
+  await page.keyboard.press('Escape');
+  await expect(viewer).toHaveAttribute('data-place', '');
+  await expect(viewer).toHaveAttribute('data-selected', '');
+  await expect(viewer).toHaveAttribute('data-resize', '');
+
+  // Delete по выбранному сносит проём: ставим вторую дверь (выбрана сразу)
+  // и удаляем клавишей — без хрупких кликов по геометрии.
+  await page.getByTestId('place-toggle').click();
+  const door2 = await placeDoorOnWall(page);
+  await expect(viewer).toHaveAttribute('data-selected', 'd-2');
+  await page.keyboard.press('Delete');
+  await expect(page.getByTestId('commit-stage')).toHaveAttribute(
+    'data-draft-count',
+    '4'
+  );
+  await expect(
+    page.locator('[data-testid="opening-del"][data-id="d-2"]')
+  ).toHaveCount(0);
+  await expect(
+    page.locator('[data-testid="opening-del"][data-id="d"]')
+  ).toHaveCount(1);
+  await expect(viewer).toHaveAttribute('data-entity-count', '7');
 });

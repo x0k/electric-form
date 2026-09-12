@@ -10,6 +10,7 @@ import {
   stateAt,
 } from '#lib/plan/history';
 import type { Operation } from '#lib/plan/operations';
+import type { Sketch } from '#lib/plan/sketch';
 
 const WALLS: Operation[] = [
   {
@@ -205,5 +206,47 @@ describe('feature history', () => {
     expect(Object.keys(headState(restored).walls)).toHaveLength(2);
     // Пустые черновики тоже переживают round-trip.
     expect(restored.draft).toEqual([]);
+  });
+
+  it('снапшот скетча едет через commit/edit/JSON', () => {
+    const sketch: Sketch = {
+      points: {
+        p1: { id: 'p1', x: 0, y: 0 },
+        p2: { id: 'p2', x: 6000, y: 0 },
+      },
+      segments: [{ id: 's1', a: 'p1', b: 'p2', stroke: 1 }],
+      constraints: [{ id: 'c1', type: 'horizontal', segment: 's1' }],
+    };
+    let h = createHistory();
+    for (const op of WALLS) h = stageOp(h, op);
+    const c = commitDraft(
+      h,
+      { stage: 'layout', label: 'Контур', sketch },
+      () => '2026-01-01T00:00:00.000Z'
+    );
+    expect(c.ok).toBe(true);
+    if (!c.ok) return;
+    expect(c.history.features[0].sketch).toMatchObject({
+      segments: [{ id: 's1' }],
+      constraints: [{ id: 'c1' }],
+    });
+
+    // Правка без скетча снапшот не трогает, со скетчем — обновляет.
+    const e1 = editFeature(c.history, 0, WALLS);
+    expect(e1.ok).toBe(true);
+    if (!e1.ok) return;
+    expect(e1.result.history.features[0].sketch).toMatchObject({
+      constraints: [{ id: 'c1' }],
+    });
+    const e2 = editFeature(c.history, 0, WALLS, null);
+    expect(e2.ok).toBe(true);
+    if (!e2.ok) return;
+    expect(e2.result.history.features[0].sketch).toBeNull();
+
+    // JSON round-trip снапшот не теряет.
+    const restored = historyFromJSON(historyToJSON(c.history));
+    expect(restored.features[0].sketch).toMatchObject({
+      segments: [{ id: 's1' }],
+    });
   });
 });

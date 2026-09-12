@@ -22,6 +22,7 @@
   import { detectConflicts } from '#lib/plan/conflicts';
   import { suggestElec, suggestLights } from '#lib/plan/autoplace';
   import type { Vec2 } from '#lib/plan/geometry';
+  import type { Sketch } from '#lib/plan/sketch';
 
   /**
    * Мастер этапов: каждый этап — отдельный экран.
@@ -57,8 +58,13 @@
   let editingIndex: number | null = $state(null);
   let message: string | null = $state(null);
   let pendingDelete: { wallId: string; names: string[] } | null = $state(null);
-  // Черновик для правки контура: outline головы + имя; null — чистый контур.
-  let editInitial: { outline: Vec2[]; roomName: string } | null = $state(null);
+  // Черновик для правки контура: снапшот скетча + имя; null — чистый контур.
+  // Снапшот несёт constraints (outline один их не переживёт).
+  let editInitial: {
+    outline: Vec2[];
+    sketch: Sketch | null;
+    roomName: string;
+  } | null = $state(null);
   let sketchKey = $state(0);
 
   const committed = $derived(history.features.length > 0);
@@ -131,13 +137,18 @@
       : 'viewer';
   }
 
-  function handleCommitSketch(payload: { ops: Operation[]; roomName: string }) {
+  function handleCommitSketch(payload: {
+    ops: Operation[];
+    roomName: string;
+    sketch: Sketch;
+  }) {
     if (!committed) {
       let h = history;
       for (const op of payload.ops) h = stageOp(h, op);
       const c = commitDraft(h, {
         stage: 'layout',
         label: `Планировка: ${payload.roomName}`,
+        sketch: payload.sketch,
       });
       if (!c.ok) {
         message = `Commit отклонён: ${c.error.message}`;
@@ -147,7 +158,7 @@
       message = 'Стены возведены. Следующий этап — двери и окна.';
       screen = 'openings';
     } else {
-      const e = editFeature(history, 0, payload.ops);
+      const e = editFeature(history, 0, payload.ops, payload.sketch);
       if (!e.ok) {
         message = `Правка отклонена: ${e.error.message}`;
         return;
@@ -220,7 +231,12 @@
       message = 'В голове истории нет помещения для правки.';
       return;
     }
-    editInitial = { outline: room.outline, roomName: room.name };
+    const layout = history.features.find((f) => f.stage === 'layout');
+    editInitial = {
+      outline: room.outline,
+      sketch: layout?.sketch ?? null,
+      roomName: room.name,
+    };
     sketchKey += 1;
     previewIndex = null;
     message = null;
@@ -392,11 +408,18 @@
   <title>Планировка — редактор</title>
 </svelte:head>
 
+<svelte:window
+  onkeydown={(e) => {
+    if (e.key === 'Escape' && pendingDelete) pendingDelete = null;
+  }}
+/>
+
 <main class="relative h-screen w-full overflow-hidden">
   {#if screen === 'sketch'}
     {#key sketchKey}
       <SketchEditor
         initialOutline={editInitial?.outline ?? null}
+        initialSketch={editInitial?.sketch ?? null}
         initialRoomName={editInitial?.roomName ?? 'Комната'}
         {committed}
         features={history.features}
@@ -487,6 +510,7 @@
           <button
             class="btn btn-sm"
             data-testid="delete-cancel"
+            autofocus
             onclick={() => (pendingDelete = null)}
           >
             Отмена

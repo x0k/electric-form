@@ -8,11 +8,19 @@
   import { modelToScene } from './render';
   import { createEmptyApartment } from './model';
   import { sketchToLayoutOps } from './layout';
-  import { PenLine, Ruler, Magnet } from '@lucide/svelte';
+  import {
+    PenLine,
+    Ruler,
+    Magnet,
+    Check,
+    Trash2,
+    Download,
+  } from '@lucide/svelte';
   import {
     createSketch,
     isSketchClosed,
     closingStrokeAtPoint,
+    firstPolylinePoint,
     sketchAddConstraint,
     sketchAddPoint,
     sketchAddSegment,
@@ -40,17 +48,24 @@
 
   interface Props {
     initialOutline: Vec2[] | null;
+    /** Снапшот скетча из Feature (constraints переживают правку). */
+    initialSketch: Sketch | null;
     initialRoomName: string;
     committed: boolean;
     features: Feature[];
     previewIndex: number | null;
     onTogglePreview: (index: number) => void;
     onEditFeature: (index: number) => void;
-    onCommit: (payload: { ops: Operation[]; roomName: string }) => void;
+    onCommit: (payload: {
+      ops: Operation[];
+      roomName: string;
+      sketch: Sketch;
+    }) => void;
   }
 
   let {
     initialOutline,
+    initialSketch,
     initialRoomName,
     committed,
     features,
@@ -60,21 +75,55 @@
     onCommit,
   }: Props = $props();
 
+  /** Максимальный числовой суффикс id вида p12/s3/c7 (защита от коллизий). */
+  function seqMax(ids: string[], prefix: string): number {
+    let max = 0;
+    for (const id of ids) {
+      const m = new RegExp(`^${prefix}(\\d+)$`).exec(id);
+      if (m) max = Math.max(max, Number(m[1]));
+    }
+    return max;
+  }
+
   function loadInitial(): {
     sketch: Sketch;
     points: number;
     segs: number;
+    strokes: number;
+    constraints: number;
     error: string | null;
   } {
-    if (!initialOutline) {
-      return { sketch: createSketch(), points: 0, segs: 0, error: null };
+    const empty = () => ({
+      sketch: createSketch(),
+      points: 0,
+      segs: 0,
+      strokes: 0,
+      constraints: 0,
+      error: null as string | null,
+    });
+    // Снапшот из истории — constraints целы; клонируем, чужое не мутируем.
+    const base = initialSketch ? $state.snapshot(initialSketch) : null;
+    if (base) {
+      return {
+        sketch: base,
+        points: seqMax(Object.keys(base.points), 'p'),
+        segs: seqMax(
+          base.segments.map((s) => s.id),
+          's'
+        ),
+        strokes: Math.max(0, ...base.segments.map((s) => s.stroke)),
+        constraints: seqMax(
+          base.constraints.map((c) => c.id),
+          'c'
+        ),
+        error: null,
+      };
     }
+    if (!initialOutline) return empty();
     const r = sketchFromOutline(initialOutline);
     if (!r.ok) {
       return {
-        sketch: createSketch(),
-        points: 0,
-        segs: 0,
+        ...empty(),
         error: `Не удалось загрузить контур: ${r.error.message}`,
       };
     }
@@ -82,6 +131,8 @@
       sketch: r.value,
       points: Object.keys(r.value.points).length,
       segs: r.value.segments.length,
+      strokes: Math.max(0, ...r.value.segments.map((s) => s.stroke)),
+      constraints: 0,
       error: null,
     };
   }
@@ -95,6 +146,8 @@
   let toolMode: ToolMode = $state('draw');
   /** Численный решатель готов (WASM грузится асинхронно при монтировании). */
   let gcsReady = $state(isGcsLoaded());
+  /** WASM не загрузился (сеть): редактор кирпичом не станет, скажем честно. */
+  let gcsFailed = $state(false);
 
   onMount(() => {
     ensureGcsLoaded().then(
@@ -103,6 +156,7 @@
       },
       () => {
         gcsReady = false;
+        gcsFailed = true;
       }
     );
   });
@@ -114,8 +168,8 @@
   let sketch: Sketch = $state(boot.sketch);
   let pointSeq = $state(boot.points);
   let segSeq = $state(boot.segs);
-  let strokeSeq = $state(0);
-  let constraintSeq = $state(0);
+  let strokeSeq = $state(boot.strokes);
+  let constraintSeq = $state(boot.constraints);
   /** Активный штрих и его конец. null — штриха нет, пустой клик начнёт новый. */
   let activeStroke: number | null = $state(null);
   let chainEnd: string | null = $state(null);
@@ -193,9 +247,44 @@
     }
   }
 
+  /** Радиус магнитного замыкания: клик рядом с началом активного штриха
+   * (мимо маленькой ручки) всё равно замыкает, а не плодит точки. */
+  const CLOSE_SNAP_MM = 120;
+
+  /** Замкнуть активный штрих замыкающей гранью (клик по началу или рядом). */
+  function closeActiveStroke(shift: boolean, raw: Vec2) {
+    const st = activeStroke;
+    if (st === null) return;
+    segSeq += 1;
+    const closeId = `s${segSeq}`;
+    const r = sketchClose(sketch, closeId, st);
+    if (!r.ok) {
+      segSeq -= 1;
+      say(`Не замкнут: ${r.error.message}`);
+      return;
+    }
+    sketch = r.value;
+    activeStroke = null;
+    chainEnd = null;
+    pendingFreshPoint = null;
+    selectedIds = [];
+    say(null);
+    sketch = maybeAutoConstrain(sketch, closeId, {
+      force: shift,
+      raw,
+      straighten: false,
+      // Замыкающая грань идёт из конца цепочки: подтянуть можно его.
+      moveA: true,
+    });
+  }
+
   function handlePlanClick(plan: Vec2, info?: PlanClickInfo) {
     if (!gcsReady) {
-      say('Решатель загружается…');
+      say(
+        gcsFailed
+          ? 'Численный решатель не загрузился — проверьте сеть и обновите страницу.'
+          : 'Решатель загружается…'
+      );
       return;
     }
     // Инструмент совпадения работает и тут: вьювер не знает про инструменты
@@ -222,27 +311,7 @@
       // возобновляет свой штрих с его конца (а не замыкает сюрпризом).
       if (st !== null && !isSketchClosed(sketch, st)) {
         if (st === activeStroke) {
-          segSeq += 1;
-          const closeId = `s${segSeq}`;
-          const r = sketchClose(sketch, closeId, st);
-          if (!r.ok) {
-            segSeq -= 1;
-            say(`Не замкнут: ${r.error.message}`);
-            return;
-          }
-          sketch = r.value;
-          activeStroke = null;
-          chainEnd = null;
-          pendingFreshPoint = null;
-          selectedIds = [];
-          say(null);
-          sketch = maybeAutoConstrain(sketch, closeId, {
-            force: info.shift,
-            raw: info.raw,
-            straighten: false,
-            // Замыкающая грань идёт из конца цепочки: подтянуть можно его.
-            moveA: true,
-          });
+          closeActiveStroke(info.shift, info.raw);
           return;
         }
         if (chainEnd === null) {
@@ -301,6 +370,21 @@
     if (constraintTool) {
       say(`Инструмент ${constraintToolLabel(constraintTool)}: кликайте грани.`);
       return;
+    }
+    // Магнитное замыкание: клик рядом с началом активного штриха
+    // (мимо ручки) замыкает, а не ставит точку-дубликат рядом.
+    if (chainEnd !== null && activeStroke !== null) {
+      const startId = firstPolylinePoint(sketch, activeStroke);
+      const startPt = startId ? sketch.points[startId] : undefined;
+      if (
+        startPt &&
+        startId !== chainEnd &&
+        strokeSegments(sketch, activeStroke).length >= 2 &&
+        Math.hypot(plan.x - startPt.x, plan.y - startPt.y) <= CLOSE_SNAP_MM
+      ) {
+        closeActiveStroke(info?.shift ?? false, info?.raw ?? plan);
+        return;
+      }
     }
     pointSeq += 1;
     const pid = `p${pointSeq}`;
@@ -477,22 +561,81 @@
 
   /** Взять/снять инструмент ограничения (взаимоисключение с полилинией). */
   function toggleConstraintTool(tool: Exclude<ConstraintTool, null>) {
-    constraintTool = constraintTool === tool ? null : tool;
+    if (constraintTool === tool) {
+      constraintTool = null;
+      coincidentFirst = null;
+      say(null);
+      return;
+    }
+    constraintTool = tool;
     coincidentFirst = null;
-    if (constraintTool) {
-      // Полилиния паркуется: висячее начало без граней — в корзину,
-      // остальная геометрия цела, продолжить можно позже.
-      dropFreshPoint();
-      toolMode = 'select';
-      activeStroke = null;
-      chainEnd = null;
+    // Выбранное применяется сразу, как в CAD — кликать второй раз не надо.
+    const applied = applyToolToSelection(tool);
+    // Полилиния паркуется: висячее начало без граней — в корзину,
+    // остальная геометрия цела, продолжить можно позже.
+    dropFreshPoint();
+    toolMode = 'select';
+    activeStroke = null;
+    chainEnd = null;
+    if (!applied) {
       say(
         `Инструмент ${constraintToolLabel(tool)}: ` +
           (tool === 'coincident' ? 'кликайте две точки.' : 'кликайте грани.')
       );
-    } else {
-      say(null);
     }
+  }
+
+  /**
+   * Применить взятый инструмент к текущему выбору.
+   * Возвращает true, если выбор поглощён (применено / открыт редактор /
+   * точка вооружена) — иначе инструмент просто взят и ждёт кликов.
+   */
+  function applyToolToSelection(tool: Exclude<ConstraintTool, null>): boolean {
+    const segIds = selectedIds.filter((id) =>
+      sketch.segments.some((s) => s.id === id)
+    );
+    const ptIds = selectedIds.filter((id) => sketch.points[id]);
+    if (tool === 'coincident') {
+      if (ptIds.length >= 2) {
+        constraintSeq += 1;
+        const cid = `c${constraintSeq}`;
+        const r = sketchAddConstraint(sketch, {
+          id: cid,
+          type: 'coincident',
+          points: [ptIds[0], ptIds[1]],
+        });
+        if (!r.ok) {
+          constraintSeq -= 1;
+          say(`Constraint отклонён: ${r.error.message}`);
+          return true;
+        }
+        sketch = r.value;
+        selectedIds = [ptIds[0], ptIds[1]];
+        say(`Constraint ${cid} применён: точки склеены.`);
+        return true;
+      }
+      if (ptIds.length === 1) {
+        // Одна точка — вооружить, вторая доберётся кликом.
+        coincidentFirst = ptIds[0];
+        say('Совпадение: кликните вторую точку.');
+        return true;
+      }
+      return false;
+    }
+    if (segIds.length === 0) return false;
+    if (tool === 'length') {
+      openDimPopup(segIds[0], null);
+      say(null);
+      return true;
+    }
+    let n = 0;
+    for (const sid of segIds) {
+      const was = sketch.constraints.length;
+      applyToolToSegment(sid);
+      if (sketch.constraints.length > was) n += 1;
+    }
+    if (n > 0) selectedIds = [...segIds];
+    return n > 0;
   }
 
   /** Клик точкой при инструменте совпадения: первая — вооружить, вторая — склеить. */
@@ -527,14 +670,10 @@
     say(`Constraint ${cid} применён: точки склеены.`);
   }
 
-  /** Клик гранью при активном инструменте. Ось вычисляется из геометрии,
-   * длина открывает редактор значения прямо на канвасе. */
+  /** Клик гранью при активном инструменте оси: ось из геометрии грани.
+   * Длина открывает редактор в точке клика (см. handleSelect/handleBadgeClick). */
   function applyToolToSegment(segmentId: string) {
-    if (!constraintTool || constraintTool === 'coincident') return;
-    if (constraintTool === 'length') {
-      openDimPopup(segmentId, null);
-      return;
-    }
+    if (!constraintTool || constraintTool !== 'axis') return;
     const seg = sketch.segments.find((s) => s.id === segmentId);
     const a = seg ? sketch.points[seg.a] : undefined;
     const b = seg ? sketch.points[seg.b] : undefined;
@@ -563,17 +702,22 @@
     return c && c.type === 'length' ? c.lengthMm : null;
   }
 
-  /** Редактор размера на канвасе (как в Sketcher): позиция клика + значение. */
+  /** Редактор размера на канвасе (как в Sketcher): позиция клика + значение.
+   * Без позиции (кнопка инструмента) — по центру вьюпорта, а не в углу. */
   function openDimPopup(
     segmentId: string,
     at: { x: number; y: number } | null
   ) {
     const existing = lengthConstraintOf(segmentId);
     const current = segmentLengthMm(segmentId);
+    const fallback =
+      typeof window !== 'undefined'
+        ? { x: window.innerWidth / 2 - 112, y: 100 }
+        : { x: 0, y: 0 };
     dimPopup = {
       segmentId,
-      x: at?.x ?? 0,
-      y: at?.y ?? 0,
+      x: at?.x ?? fallback.x,
+      y: at?.y ?? fallback.y,
       // Текущее (округлённое) или уже зафиксированное значение.
       value:
         existing ?? (current !== null ? Math.round(current / 10) * 10 : 1000),
@@ -604,7 +748,21 @@
     dimPopup = null;
   }
 
-  function handleSelect(id: string | null) {
+  /** Клик по значку/табличке грани: в инструменте — применить его. */
+  function handleBadgeClick(info: { segmentId: string; x: number; y: number }) {
+    if (constraintTool === 'axis') {
+      applyToolToSegment(info.segmentId);
+      selectedIds = [info.segmentId];
+      return;
+    }
+    if (constraintTool === 'coincident') {
+      say('Совпадение: кликните точку (нужны две).');
+      return;
+    }
+    openDimPopup(info.segmentId, { x: info.x, y: info.y });
+  }
+
+  function handleSelect(id: string | null, at?: { x: number; y: number }) {
     // Инструмент совпадения: нужны две точки, режимы не важны.
     if (constraintTool === 'coincident') {
       if (id && sketch.points[id]) {
@@ -615,7 +773,12 @@
       return;
     }
     // Инструмент ограничения первичнее режимов: грань — применить.
+    // Длина открывает редактор прямо в точке клика.
     if (constraintTool && id && sketch.segments.some((s) => s.id === id)) {
+      if (constraintTool === 'length') {
+        openDimPopup(id, at ?? null);
+        return;
+      }
       applyToolToSegment(id);
       selectedIds = [id];
       return;
@@ -699,7 +862,7 @@
     say(failures > 0 ? `Не всё удалено: ошибок ${failures}.` : null);
   }
 
-  /** Выход из полилинии (Esc / правая кнопка, как в Sketcher). */
+  /** Выход из полилинии (Esc, как в Sketcher): гасит всё. */
   function finishPolyline() {
     // Инструмент снимается первым — он липкий, но не вечный.
     if (constraintTool) {
@@ -716,6 +879,27 @@
       chainEnd = null;
       say('Полилиния завершена — режим выбора.');
     }
+  }
+
+  /**
+   * ПКМ: просто прервать текущий штрих, инструменты не трогаем.
+   * Штриха нет (строить нечего) — тогда и только тогда гасим инструмент.
+   */
+  function interruptStroke() {
+    if (chainEnd === null && activeStroke === null) {
+      dropFreshPoint();
+      if (constraintTool) {
+        constraintTool = null;
+        coincidentFirst = null;
+      }
+      toolMode = 'select';
+      say(null);
+      return;
+    }
+    dropFreshPoint();
+    activeStroke = null;
+    chainEnd = null;
+    say('Штрих прерван — клик начнёт новый.');
   }
 
   function handleKeyDown(e: KeyboardEvent) {
@@ -747,14 +931,16 @@
     handleDeleteSelection();
   }
 
-  function handleDeleteConstraint(constraintId: string) {
+  /** Снять ограничение; true — снято. Попап при этом не закрываем. */
+  function handleDeleteConstraint(constraintId: string): boolean {
     const r = sketchRemoveConstraint(sketch, constraintId);
     if (!r.ok) {
       say(`Не удалено: ${r.error.message}`);
-      return;
+      return false;
     }
     sketch = r.value;
     say(null);
+    return true;
   }
 
   function handleCommit() {
@@ -763,7 +949,48 @@
       say(`Commit невозможен: ${ops.error.message}`);
       return;
     }
-    onCommit({ ops: ops.value, roomName });
+    // Скетч целиком (с constraints) — наверх в снапшот Feature.
+    // $state.snapshot: plain-копия ($state-прокси structuredClone не берёт).
+    onCommit({ ops: ops.value, roomName, sketch: $state.snapshot(sketch) });
+  }
+
+  /**
+   * Дамп скетча для репорта: состояние, статистика, последнее сообщение
+   * и лёгкая мета истории. Скачивается файлом — приложите к issue.
+   */
+  function downloadSketchDump() {
+    const dump = {
+      app: 'electric-form/plan',
+      exportedAt: new Date().toISOString(),
+      roomName,
+      toolMode,
+      sketch: $state.snapshot(sketch),
+      stats: {
+        points: Object.keys(sketch.points).length,
+        segments: sketch.segments.length,
+        constraints: sketch.constraints.length,
+      },
+      lastMessage: message,
+      features: features.map((f) => ({
+        index: f.index,
+        stage: f.stage,
+        label: f.label,
+        ops: f.ops.length,
+        hasSketch: !!f.sketch,
+      })),
+    };
+    const blob = new Blob([JSON.stringify(dump, null, 2)], {
+      type: 'application/json',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'sketch-dump.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    say('Дамп скетча скачан — приложите файл к репорту.');
   }
 </script>
 
@@ -791,6 +1018,28 @@
           onclick={toggleDrawTool}
         >
           <PenLine size={16} />
+        </button>
+      </div>
+      <div class="join" role="group" aria-label="Штрих и выбор">
+        <button
+          class="btn btn-sm join-item"
+          data-testid="stroke-done"
+          title="Завершить штрих (Esc, правая кнопка)"
+          aria-label="Завершить штрих"
+          disabled={!chainEnd}
+          onclick={finishStroke}
+        >
+          <Check size={16} />
+        </button>
+        <button
+          class="btn btn-sm join-item"
+          data-testid="delete-selection"
+          title="Удалить выбранное (Delete)"
+          aria-label="Удалить выбранное"
+          disabled={selectedIds.length === 0}
+          onclick={handleDeleteSelection}
+        >
+          <Trash2 size={16} />
         </button>
       </div>
       {#if constraintTool}
@@ -834,6 +1083,15 @@
           <Magnet size={16} />
         </button>
       </div>
+      <button
+        class="btn btn-sm btn-ghost"
+        data-testid="sketch-dump"
+        title="Скачать дамп скетча (JSON) для репорта об ошибке"
+        aria-label="Скачать дамп скетча"
+        onclick={downloadSketchDump}
+      >
+        <Download size={16} />
+      </button>
       <span class="text-sm opacity-70" data-testid="selection-count">
         Выбрано: {selectedIds.length}
       </span>
@@ -955,7 +1213,7 @@
       snapStepMm={Number(snapStepMm)}
       gridStepMm={100}
       onSelect={handleSelect}
-      onBadgeClick={({ segmentId, x, y }) => openDimPopup(segmentId, { x, y })}
+      onBadgeClick={handleBadgeClick}
       onBoxSelect={(ids) => (selectedIds = ids)}
       boxSelect={toolMode === 'select'}
       onPlanClick={handlePlanClick}
@@ -963,7 +1221,7 @@
       onSketchPointCommit={handleMove}
       onSketchSegmentMove={handleSegmentMove}
       onSketchSegmentCommit={handleSegmentMove}
-      onPolylineFinish={finishPolyline}
+      onPolylineFinish={interruptStroke}
       {rubberFrom}
       rubberLockHint={autoConstraints}
       {activeStroke}

@@ -2,6 +2,9 @@
   import { onMount } from 'svelte';
   import * as THREE from 'three';
   import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  import { Line2 } from 'three/addons/lines/Line2.js';
+  import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
+  import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
   import type { RenderScene } from './render';
   import type { EditorCameraMode } from './camera';
   import {
@@ -54,7 +57,7 @@
      */
     selectedIds?: string[];
     /** Клик по сцене: id сущности или null (клик по пустому месту). */
-    onSelect?: (id: string | null) => void;
+    onSelect?: (id: string | null, at?: { x: number; y: number }) => void;
     /** Рамка выбора в режиме select: id точек и граней внутри. */
     onBoxSelect?: (ids: string[]) => void;
     /**
@@ -183,6 +186,8 @@
   const RUBBER_DOT_RADIUS_M = 0.03;
   /** Порог попадания в грань при клике по самой линии, м. */
   const SEG_PICK_THRESHOLD_M = 0.06;
+  /** Толщина граней скетча на экране, px (THREE.Line всегда 1px). */
+  const SKETCH_LINE_WIDTH_PX = 3;
   const DRAG_PX_THRESHOLD = 4;
   const RESIZE_COLOR = 0xea580c;
 
@@ -206,7 +211,9 @@
   let pickables: THREE.Object3D[] = [];
   let sketchHandles: THREE.Mesh[] = [];
   /** Линии граней для прямого выбора (клик по самой грани). */
-  let segmentLines: THREE.Line[] = [];
+  let segmentLines: Line2[] = [];
+  /** Материалы граней (resolution обновляем на resize). */
+  let segmentMats: LineMaterial[] = [];
   /** Спрайты значков ограничений (кликабельны для правки). */
   let badgeSprites: THREE.Sprite[] = [];
   /** Таблички длин граней без driving-размера (клик — туда же, в редактор). */
@@ -230,12 +237,32 @@
   let lengthCount = $state(0);
   /** Стены, погашенные углом изометрии (ближний угол). */
   let fadedIds: string[] = $state([]);
+  /** Камера «цель,з-dist/zoom» для e2e навигации. */
+  let camKey = $state('');
+
+  /** Обновить data-cam после программного движения камеры. */
+  function markCam() {
+    if (!controls || !activeCamera) {
+      camKey = '';
+      return;
+    }
+    const dist =
+      activeCamera instanceof THREE.OrthographicCamera
+        ? `z${activeCamera.zoom.toFixed(2)}`
+        : `d${Math.round(activeCamera.position.distanceTo(controls.target))}`;
+    // Азимут взгляда — видно и вращение, а не только панораму/зум.
+    const off = activeCamera.position.clone().sub(controls.target);
+    const theta = Math.round((Math.atan2(off.x, off.z) * 180) / Math.PI);
+    camKey = `${Math.round(controls.target.x * 1000)},${Math.round(controls.target.z * 1000)},${dist},th${theta}`;
+  }
 
   // Drag вершин скетча.
   let dragPointId: string | null = null;
   let downPx: { x: number; y: number } | null = null;
   let dragging = false;
   let suppressClick = false;
+  /** Shift+drag пустого места: ручная панорама (LEFT у three отвязана). */
+  let shiftPanDrag = false;
   /** Дистанция pointerdown→pointerup: отличаем клик от orbit-drag. */
   let lastPointerTravel = 0;
   /** Id точек скетча, уже заведённые в byEntity (для чистки подсветки). */
@@ -266,6 +293,8 @@
   let ghostSig: string | null = null;
   /** Позиция госта «x,y» для e2e; '' — гост скрыт. */
   let ghostKey = $state('');
+  /** Гост на валидном месте (зелёный) или нет (красный). */
+  let ghostOk = $state(true);
   /** Стена под гостом для e2e (поиск точки стены свипом); '' — пол/нет. */
   let ghostWall = $state('');
   /** Тащим объект: id + захват (курсор минус центр, мм плана). */
@@ -380,17 +409,45 @@
 
     // Esc отменяет размещение/перетаскивание. Скетч-режим его не видит:
     // там placeTool пуст и objDragId не выставляется. В полях ввода — игнор.
+    // Стрелки двигают вид, PgUp/PgDn — зум (как во FreeCAD): трекпад без мыши.
+    // Shift+левая панорамирует сам OrbitControls (Touchpad-стиль из коробки),
+    // ремаппить ничего не надо — ниже только пропуск рамки при Shift.
     const onKey = (ev: KeyboardEvent) => {
-      if (ev.key !== 'Escape') return;
       const t = ev.target as HTMLElement | null;
       const tag = t?.tagName ?? '';
       if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
-      if (objDragId) {
-        cancelObjDrag();
-        suppressClick = true;
-      } else if (placeTool) {
-        hideGhost();
-        onToolCancel?.();
+      if (ev.key === 'Escape') {
+        if (objDragId) {
+          cancelObjDrag();
+          suppressClick = true;
+        } else if (resizeId) {
+          cancelResizeDrag();
+          suppressClick = true;
+        } else if (placeTool) {
+          hideGhost();
+          onToolCancel?.();
+        }
+        return;
+      }
+      if (ev.key.startsWith('Arrow')) {
+        const stepMm = Math.max(
+          100,
+          Math.round(fitDistanceMm(scene.bounds) / 20)
+        );
+        panView(
+          ev.key === 'ArrowLeft'
+            ? -stepMm
+            : ev.key === 'ArrowRight'
+              ? stepMm
+              : 0,
+          ev.key === 'ArrowUp' ? stepMm : ev.key === 'ArrowDown' ? -stepMm : 0
+        );
+        ev.preventDefault();
+        return;
+      }
+      if (ev.key === 'PageUp' || ev.key === 'PageDown') {
+        zoomView(ev.key === 'PageUp' ? 1 : -1);
+        ev.preventDefault();
       }
     };
     window.addEventListener('keydown', onKey);
@@ -510,6 +567,95 @@
     if (!placeTool) hideGhost();
   });
 
+  /** Панорама вида в мм плана (верх экрана = +Y, как сверху). */
+  function panView(dxMm: number, dyMm: number) {
+    if (!controls || !activeCamera) return;
+    const off = new THREE.Vector3(dxMm * K, 0, -dyMm * K);
+    controls.target.add(off);
+    activeCamera.position.add(off);
+    controls.update();
+    markCam();
+  }
+
+  /** Зум вида: орто — через zoom, перспектива — наезд на цель. */
+  function zoomView(dir: 1 | -1) {
+    zoomByFactor(dir > 0 ? 1.25 : 0.8);
+  }
+
+  /** Плавный зум на коэффициент (тачпад-жест, PgUp/PgDn). */
+  function zoomByFactor(f: number) {
+    if (!controls || !activeCamera) return;
+    if (activeCamera instanceof THREE.OrthographicCamera) {
+      activeCamera.zoom = Math.min(100, Math.max(0.25, activeCamera.zoom * f));
+      activeCamera.updateProjectionMatrix();
+    } else {
+      const off = activeCamera.position
+        .clone()
+        .sub(controls.target)
+        .multiplyScalar(1 / f);
+      activeCamera.position.copy(controls.target).add(off);
+    }
+    controls.update();
+    markCam();
+  }
+
+  /**
+   * Панорама на пиксельный сдвиг курсора (тачпад, FreeCAD Touchpad:
+   * Shift + движение). Масштаб — из реального вьюпорта.
+   */
+  function navPan(dxPx: number, dyPx: number) {
+    if (!controls || !activeCamera || !canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    let worldPerPx: number;
+    if (activeCamera instanceof THREE.OrthographicCamera) {
+      worldPerPx =
+        (activeCamera.right - activeCamera.left) /
+        activeCamera.zoom /
+        rect.width;
+    } else {
+      const dist = activeCamera.position.distanceTo(controls.target);
+      const fov =
+        ((activeCamera as THREE.PerspectiveCamera).fov * Math.PI) / 180;
+      worldPerPx = (2 * dist * Math.tan(fov / 2)) / rect.height;
+    }
+    activeCamera.updateMatrixWorld();
+    const right = new THREE.Vector3().setFromMatrixColumn(
+      activeCamera.matrixWorld,
+      0
+    );
+    const up = new THREE.Vector3().setFromMatrixColumn(
+      activeCamera.matrixWorld,
+      1
+    );
+    const off = right
+      .multiplyScalar(-dxPx * worldPerPx)
+      .add(up.multiplyScalar(dyPx * worldPerPx));
+    controls.target.add(off);
+    activeCamera.position.add(off);
+    controls.update();
+    markCam();
+  }
+
+  /**
+   * Вращение вида на пиксельный сдвиг (тачпад: Alt + движение).
+   * Сверху не крутим — там вращение выключено.
+   */
+  function navRotate(dxPx: number, dyPx: number) {
+    if (!controls || !activeCamera || cameraMode === 'top') return;
+    const off = activeCamera.position.clone().sub(controls.target);
+    const sph = new THREE.Spherical().setFromVector3(off);
+    const speed = 0.005;
+    sph.theta -= dxPx * speed;
+    sph.phi -= dyPx * speed;
+    sph.phi = Math.min(Math.PI / 2 - 0.02, Math.max(0.05, sph.phi));
+    sph.radius = Math.max(0.1, sph.radius);
+    off.setFromSpherical(sph);
+    activeCamera.position.copy(controls.target).add(off);
+    controls.update();
+    markCam();
+  }
+
   function boundsKey(): string {
     const b = scene.bounds;
     return `${b.minX}:${b.minY}:${b.maxX}:${b.maxY}`;
@@ -594,9 +740,26 @@
       controls.minZoom = 0.25;
       controls.maxZoom = 100;
     }
+    // Навигация строго Touchpad (вики FreeCAD): plain левая — только
+    // клик/рамка/жесты редактора, камеру она НЕ крутит. Вращение — Alt
+    // движением или одним пальцем, панорама — Shift, зум — Ctrl+Shift
+    // или колесо; правая/средняя кнопки — как обычно (pan/zoom).
+    // Тач-жесты отдельно ниже: у планшетов нет модификаторов.
+    controls.mouseButtons = {
+      LEFT: null,
+      MIDDLE: THREE.MOUSE.DOLLY,
+      RIGHT: THREE.MOUSE.PAN,
+    };
+    controls.touches = {
+      ONE: THREE.TOUCH.ROTATE,
+      TWO: THREE.TOUCH.DOLLY_PAN,
+    };
+    // Жест пользователя кончился — обновить data-cam для e2e.
+    controls.addEventListener('end', markCam);
     controls.target.copy(target);
     controls.update();
     framedMode = cameraMode;
+    markCam();
   }
 
   function rebuild() {
@@ -803,6 +966,7 @@
     disposeSketch();
     sketchHandles = [];
     segmentLines = [];
+    segmentMats = [];
     badgeSprites = [];
     lengthSprites = [];
     if (!sketch) {
@@ -813,28 +977,33 @@
     }
     sketchGroup = new THREE.Group();
 
-    // Каждая грань — своя линия: прямой выбор кликом по грани,
-    // без ручек-призраков.
+    // Каждая грань — своя толстая линия (Line2, ширина в px):
+    // прямой выбор кликом по грани, без ручек-призраков.
     for (const seg of sketch.segments) {
       const a = sketch.points[seg.a];
       const b = sketch.points[seg.b];
       if (!a || !b) continue;
-      const geo = new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(a.x * K, 0.02, -a.y * K),
-        new THREE.Vector3(b.x * K, 0.02, -b.y * K),
-      ]);
-      const mat = new THREE.LineBasicMaterial({
+      const geo = new LineGeometry();
+      geo.setPositions([a.x * K, 0.02, -a.y * K, b.x * K, 0.02, -b.y * K]);
+      const mat = new LineMaterial({
         color: SKETCH_LINE_COLOR,
+        linewidth: SKETCH_LINE_WIDTH_PX,
         depthTest: false,
         transparent: true,
       });
-      const line = new THREE.Line(geo, mat);
+      mat.resolution.set(
+        container?.clientWidth || 1,
+        container?.clientHeight || 1
+      );
+      const line = new Line2(geo, mat);
+      line.frustumCulled = false;
       // Overlay всегда поверх модели — как гизмо редактора.
       line.renderOrder = 998;
       line.userData.entityId = seg.id;
       line.userData.segmentId = seg.id;
       sketchGroup.add(line);
       segmentLines.push(line);
+      segmentMats.push(mat);
       track(seg.id, line);
     }
 
@@ -861,7 +1030,8 @@
     ];
     gizmoKey = `${sketchHandles.length}:${segmentLines.length}`;
 
-    // Значки ограничений на геометрии (как глифы в Sketcher).
+    // Значки ограничений в стороне от середины (как глифы в Sketcher),
+    // а по центру всегда размер: серая табличка или driving-значение.
     const badges = sketchBadges(sketch);
     const driving = new Set(
       badges
@@ -874,15 +1044,33 @@
         badge.labels.join('·'),
         dim ? 'dim' : 'geom'
       );
-      sprite.position.set(badge.x * K, 0.06, -badge.y * K);
+      if (!dim) {
+        // Глиф H/V в стороне, чтобы не спорить с размером за центр.
+        const seg = sketch.segments.find((s) => s.id === badge.segment);
+        const a = seg ? sketch.points[seg.a] : undefined;
+        const b = seg ? sketch.points[seg.b] : undefined;
+        if (a && b) {
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const len = Math.hypot(dx, dy) || 1;
+          sprite.position.set(
+            (badge.x + (-dy / len) * 220) * K,
+            0.06,
+            -(badge.y + (dx / len) * 220) * K
+          );
+        } else {
+          sprite.position.set(badge.x * K, 0.06, -badge.y * K);
+        }
+      } else {
+        sprite.position.set(badge.x * K, 0.06, -badge.y * K);
+      }
       sprite.userData.badgeFor = badge.segment;
       sketchGroup.add(sprite);
       badgeSprites.push(sprite);
     }
     badgeCount = badgeSprites.length;
 
-    // Длина каждой грани без driving-размера — сразу на канвасе
-    // (серая табличка чуть в стороне от середины; клик — в редактор).
+    // Длина каждой грани без driving-размера — ровно по центру.
     for (const seg of sketch.segments) {
       if (driving.has(seg.id)) continue;
       const a = sketch.points[seg.a];
@@ -893,13 +1081,7 @@
       const len = Math.hypot(dx, dy);
       if (len < 1e-9) continue;
       const sprite = makeBadgeSprite(String(Math.round(len)), 'length');
-      const off = 150;
-      sprite.position.set(
-        ((a.x + b.x) / 2 + (-dy / len) * off) * K,
-        0.06,
-        -((a.y + b.y) / 2 + (dx / len) * off) * K
-      );
-      sprite.scale.set(0.24, 0.12, 1);
+      sprite.position.set(((a.x + b.x) / 2) * K, 0.06, (-(a.y + b.y) / 2) * K);
       sprite.userData.badgeFor = seg.id;
       sketchGroup.add(sprite);
       lengthSprites.push(sprite);
@@ -975,15 +1157,16 @@
   }
 
   /**
-   * Гашение ближних стен в изометрии: стены на осях исходящего
-   * к камере угла становятся прозрачными — виден интерьер.
+   * Гашение ближних стен в изометрии: гаснут стены, развёрнутые к камере
+   * и лежащие ближе центра, — виден интерьер. Работает для любого контура,
+   * а не только для прямоугольника по осям (там угол мог ни с чем
+   * не совпасть и гашение молча не срабатывало).
    * В остальных режимах все стены непрозрачны.
    */
   function applyFade() {
     const faded = new Set<string>();
     if (cameraMode === 'iso' && content) {
-      // База угла — контур пола (внутренний), а не расширенные bounds:
-      // стыки стен лежат ровно на его вершинах.
+      // База — контур пола (внутренний), а не расширенные bounds.
       const floor = scene.slabs.find((s) => s.kind === 'floor');
       const base = floor
         ? {
@@ -993,13 +1176,37 @@
             maxY: Math.max(...floor.points.map((p) => p.y)),
           }
         : scene.bounds;
+      const cx = (base.minX + base.maxX) / 2;
+      const cy = (base.minY + base.maxY) / 2;
+      // Направление на камеру из центра: тот же угол пресета.
       const corner = isoPresetCorner(base, isoPreset);
       for (const w of scene.walls) {
-        const near = (x: number, y: number) =>
-          Math.hypot(x - corner.x, y - corner.y) <= 1;
-        if (near(w.axMm, w.ayMm) || near(w.bxMm, w.byMm)) {
+        // Точное правило для прямоугольника по осям: стык на углу камеры.
+        const nearCorner =
+          Math.hypot(w.axMm - corner.x, w.ayMm - corner.y) <= 1 ||
+          Math.hypot(w.bxMm - corner.x, w.byMm - corner.y) <= 1;
+        if (nearCorner) {
           faded.add(w.id);
+          continue;
         }
+        // Общее правило для любого контура: стена ближе центра
+        // и развёрнута к камере.
+        let vx = corner.x - cx;
+        let vy = corner.y - cy;
+        const vl = Math.hypot(vx, vy);
+        if (vl < 1e-9) continue;
+        vx /= vl;
+        vy /= vl;
+        const dx = w.bxMm - w.axMm;
+        const dy = w.byMm - w.ayMm;
+        const len = Math.hypot(dx, dy);
+        if (len < 1e-9) continue;
+        const facing = Math.abs(vx * (-dy / len) + vy * (dx / len));
+        const near =
+          ((w.axMm + w.bxMm) / 2 - cx) * vx +
+            ((w.ayMm + w.byMm) / 2 - cy) * vy >
+          0;
+        if (near && facing > 0.5) faded.add(w.id);
       }
     }
     fadedIds = [...faded].sort();
@@ -1404,9 +1611,9 @@
           } else {
             std.emissiveIntensity = 0;
           }
-        } else if ((mat as THREE.LineBasicMaterial).isLineBasicMaterial) {
+        } else if ((mat as LineMaterial).isLineMaterial) {
           // Грани: выбор и preselect — цветом линии.
-          (mat as THREE.LineBasicMaterial).color.setHex(
+          (mat as LineMaterial).color.setHex(
             isSelected
               ? SELECT_COLOR
               : entityId === hovered
@@ -1418,41 +1625,45 @@
     }
   }
 
-  /** Табличка значка ограничения — CanvasTexture-спрайт.
-   * Driving-размеры (длина) красные, геометрия (H/V) синяя, как в Sketcher,
-   * сырые длины граней — серые. */
+  /** Глиф значка — CanvasTexture-спрайт без подложки, как иконки в Sketcher:
+   * цветной текст с белой обводкой. Driving-размеры красные, геометрия
+   * синяя, сырые длины серые. Размер — по длине текста. */
   function makeBadgeSprite(
     text: string,
     tone: 'geom' | 'dim' | 'length'
   ): THREE.Sprite {
     const c = document.createElement('canvas');
-    c.width = 160;
-    c.height = 80;
     const mat = new THREE.SpriteMaterial({
       depthTest: false,
       transparent: true,
     });
     const sprite = new THREE.Sprite(mat);
     const ctx = c.getContext('2d');
-    const dim = tone === 'dim';
-    const len = tone === 'length';
+    const font = 'bold 44px system-ui, sans-serif';
     if (ctx) {
-      ctx.fillStyle = 'rgba(255,255,255,0.95)';
-      ctx.strokeStyle = dim ? '#dc2626' : len ? '#78716c' : '#1d4ed8';
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.roundRect(4, 4, 152, 72, 18);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = dim ? '#7f1d1d' : len ? '#44403c' : '#1e3a8a';
-      ctx.font = 'bold 38px system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(text, 80, 44);
+      ctx.font = font;
+      c.width = Math.ceil(ctx.measureText(text).width) + 28;
+      c.height = 64;
+    } else {
+      c.width = 160;
+      c.height = 64;
+    }
+    const paint = c.getContext('2d');
+    if (paint) {
+      paint.font = font;
+      paint.textAlign = 'center';
+      paint.textBaseline = 'middle';
+      paint.lineWidth = 7;
+      paint.strokeStyle = 'rgba(255,255,255,0.95)';
+      paint.strokeText(text, c.width / 2, 34);
+      paint.fillStyle =
+        tone === 'dim' ? '#dc2626' : tone === 'length' ? '#57534c' : '#1d4ed8';
+      paint.fillText(text, c.width / 2, 34);
     }
     mat.map = new THREE.CanvasTexture(c);
     mat.needsUpdate = true;
-    sprite.scale.set(0.32, 0.16, 1);
+    // Высота глифа ~9 см, ширина — по тексту.
+    sprite.scale.set((c.width / 64) * 0.09, 0.09, 1);
     sprite.renderOrder = 1000;
     return sprite;
   }
@@ -1533,6 +1744,7 @@
   function hideGhost() {
     ghostKey = '';
     ghostWall = '';
+    ghostOk = true;
     if (ghost) ghost.visible = false;
   }
 
@@ -1696,7 +1908,9 @@
   }
 
   /**
-   * Полный хит курсора: снапнутый план + сырой + стена.
+   * Полный хит курсора: снапнутый план + сырой + стена + точка на стене.
+   * wallPoint — честная точка попадания в меш (для привязок вдоль стены!);
+   * plan — всегда проекция на пол (для пола/комнат).
    * Высоты в хите нет сознательно: высота всегда из конфига инструмента,
    * иначе гост врал бы (показывает одно, ставится другое).
    */
@@ -1704,11 +1918,19 @@
     const raw = rawPlane(ndc);
     if (!raw) return null;
     const wall = wallHitAt(ndc);
-    return { plan: snapLocked(raw, null), raw, wallId: wall?.wallId };
+    return {
+      plan: snapLocked(raw, null),
+      raw,
+      wallId: wall?.wallId,
+      wallPoint: wall
+        ? { x: wall.point.x / K, y: -wall.point.z / K }
+        : undefined,
+    };
   }
 
-  /** Гост размещения следует за курсором (снап 1 см, доворот к стене). */
-  function updateToolGhost(hit: PlaceHit) {
+  /** Гост размещения следует за курсором (снап 1 см, доворот к стене).
+   * На чужой поверхности — красный: ставить сюда нельзя (клик объяснит). */
+  function updateToolGhost(hit: PlaceHit, valid: boolean) {
     const spec = placeTool;
     if (!spec || !threeScene) return;
     const isSphere = spec.layer === 'light';
@@ -1721,6 +1943,9 @@
       )
     );
     if (!ghost) return;
+    (ghost.material as THREE.MeshStandardMaterial).color.setHex(
+      valid ? GHOST_COLOR : 0xdc2626
+    );
     let angle = (spec.rotDeg * Math.PI) / 180;
     if (hit.wallId) {
       const wa = wallAngleOf(hit.wallId);
@@ -1734,10 +1959,22 @@
         : spec.layer === 'floorObject'
           ? (spec.hMm * K) / 2
           : spec.zMm * K + (spec.hMm * K) / 2;
-    ghost.position.set(hit.plan.x * K, yM, -hit.plan.y * K);
+    // Привязка к стене — по точке на стене (без параллакса высоты),
+    // иначе гост плывёт от курсора на высоких стенах. Мебель и свет
+    // живут на полу — им проекция на пол.
+    const wallBound =
+      spec.layer === 'opening' ||
+      spec.layer === 'wallObject' ||
+      spec.layer === 'elec';
+    const gp =
+      wallBound && hit.wallId && hit.wallPoint
+        ? snapLocked(hit.wallPoint, null)
+        : hit.plan;
+    ghost.position.set(gp.x * K, yM, -gp.y * K);
     ghost.rotation.set(0, angle, 0);
     ghostKey = `${hit.plan.x},${hit.plan.y}`;
     ghostWall = hit.wallId ?? '';
+    ghostOk = valid;
   }
 
   /** Гост перетаскивания: габариты объекта, позиция — adjusted-хит. */
@@ -1764,7 +2001,14 @@
       { x: raw.x - objDragGrab.x, y: raw.y - objDragGrab.y },
       null
     );
-    return { ...base, plan };
+    // Тот же сдвиг — точке на стене (проекция линейна, along честный).
+    const wallPoint = base.wallPoint
+      ? {
+          x: base.wallPoint.x - objDragGrab.x,
+          y: base.wallPoint.y - objDragGrab.y,
+        }
+      : undefined;
+    return { ...base, plan, wallPoint };
   }
 
   function cancelObjDrag() {
@@ -1821,7 +2065,7 @@
         }
         return;
       }
-      onSelect?.(handleId);
+      onSelect?.(handleId, { x: e.clientX, y: e.clientY });
       return;
     }
     // Клик по значку ограничения — правка прямо на канвасе.
@@ -1838,7 +2082,7 @@
     // Клик по самой грани — выбор сегмента.
     const gripId = segmentAt(ndc);
     if (gripId) {
-      onSelect?.(gripId);
+      onSelect?.(gripId, { x: e.clientX, y: e.clientY });
       return;
     }
     const ray = makeRay(ndc);
@@ -1921,6 +2165,9 @@
     if (!ray) return null;
     // Клик по самой грани: порог попадания вокруг линии.
     ray.params.Line.threshold = SEG_PICK_THRESHOLD_M;
+    (ray.params as unknown as { Line2: { threshold: number } }).Line2 = {
+      threshold: SEG_PICK_THRESHOLD_M,
+    };
     const hits = ray.intersectObjects(segmentLines, false);
     return (hits[0]?.object.userData.segmentId as string | undefined) ?? null;
   }
@@ -1957,6 +2204,9 @@
   }
 
   function onPointerDown(e: PointerEvent) {
+    // Второй палец мультитача — игнор: жест принадлежит первому.
+    // (Мышь всегда primary, на десктопе ничего не меняется.)
+    if (e.isPrimary === false) return;
     downPx = { x: e.clientX, y: e.clientY };
     // Свежая дистанция для каждого нажатия: travel от прошлого pan
     // правой кнопкой не должен гасить следующий левый клик.
@@ -2057,14 +2307,31 @@
         return;
       }
     }
-    // Рамка выбора: левая по пустому в режиме select (в draw — панорама).
-    if (e.button === 0 && boxSelect && !segmentAt(ndc)) {
+    // Рамка выбора: левая по пустому в режиме select без модификаторов.
+    // С Shift/Alt левая отдана навигации (pan вручную ниже / rotate).
+    if (
+      e.button === 0 &&
+      !e.shiftKey &&
+      !e.altKey &&
+      boxSelect &&
+      !segmentAt(ndc)
+    ) {
       const rel = containerPx(e);
       if (rel) {
         boxStart = rel;
         canvas.setPointerCapture?.(e.pointerId);
         if (controls) controls.enabled = false;
       }
+      return;
+    }
+    // Shift+drag пустого места — ручная панорама: жесты редактора выше
+    // не claimed (ручки, вершины, грани, объекты), рамка при Shift молчит.
+    if (e.button === 0 && e.shiftKey) {
+      shiftPanDrag = true;
+      dragging = false;
+      canvas.setPointerCapture?.(e.pointerId);
+      if (canvas) canvas.style.cursor = 'move';
+      return;
     }
   }
 
@@ -2119,7 +2386,41 @@
   }
 
   function onPointerMove(e: PointerEvent) {
+    if (e.isPrimary === false) return;
     if (!canvas) return;
+    // Ручная Shift-панорама (LEFT у three отвязана).
+    if (shiftPanDrag) {
+      if (!downPx) return;
+      navPan(e.movementX, e.movementY);
+      return;
+    }
+    // FreeCAD Touchpad без кнопок: Shift — панорама, Alt — вращение,
+    // Ctrl+Shift — зум движением мыши. Навигация глушит ховер-превью.
+    if (e.buttons === 0) {
+      const navMod =
+        e.ctrlKey && e.shiftKey
+          ? 'zoom'
+          : e.altKey
+            ? 'rotate'
+            : e.shiftKey
+              ? 'pan'
+              : null;
+      if (navMod) {
+        hideGhost();
+        hideRubber();
+        if (navMod === 'pan') {
+          navPan(e.movementX, e.movementY);
+          canvas.style.cursor = 'move';
+        } else if (navMod === 'rotate') {
+          navRotate(e.movementX, e.movementY);
+          canvas.style.cursor = 'grab';
+        } else {
+          zoomByFactor(Math.exp(-e.movementY * 0.002));
+          canvas.style.cursor = 'ns-resize';
+        }
+        return;
+      }
+    }
     // Ресайз гизмо: гост тянется за краем, операция — только на drop.
     // Луч кладём на высоту ручки, а не на пол — иначе параллакс врёт.
     if (resizeId && resizeEdge && resizePlaneY !== null) {
@@ -2163,7 +2464,7 @@
       return;
     }
     // Режим размещения: гост-превью под курсором (без зажатой кнопки).
-    // Гост — только над комнатой или стеной, иначе он врёт.
+    // Зелёный — на своей поверхности, красный — ставить сюда нельзя.
     if (placeTool) {
       if (e.buttons !== 0) {
         hideGhost();
@@ -2172,12 +2473,20 @@
       const ndc = ndcFromEvent(e);
       if (!ndc) return;
       const hit = modelHit(ndc);
-      if (!hit || (!hit.wallId && !floorHitAt(ndc))) {
+      if (!hit) {
         hideGhost();
         if (canvas) canvas.style.cursor = '';
         return;
       }
-      updateToolGhost(hit);
+      const needWall =
+        placeTool.layer === 'opening' ||
+        placeTool.layer === 'wallObject' ||
+        placeTool.layer === 'elec';
+      const needFloor =
+        placeTool.layer === 'floorObject' || placeTool.layer === 'light';
+      const valid =
+        (!needWall || !!hit.wallId) && (!needFloor || floorHitAt(ndc));
+      updateToolGhost(hit, valid);
       canvas.style.cursor = 'crosshair';
       return;
     }
@@ -2378,6 +2687,11 @@
   }
 
   function onPointerUp(e: PointerEvent) {
+    if (e.isPrimary === false) return;
+    if (shiftPanDrag) {
+      shiftPanDrag = false;
+      if (canvas) canvas.style.cursor = '';
+    }
     // Финал ресайза гизмо: тянули — коммитим операцию, клик — выбор.
     if (resizeId && resizeEdge) {
       const id = resizeId;
@@ -2444,12 +2758,15 @@
   }
 
   function onPointerCancel(e: PointerEvent) {
+    if (e.isPrimary === false) return;
+    shiftPanDrag = false;
     if (objDragId) cancelObjDrag();
     cancelResizeDrag();
     finishDrag(e, false);
   }
 
   function onPointerLeave() {
+    shiftPanDrag = false;
     hoveredId = null;
     hideRubber();
     hideGhost();
@@ -2469,6 +2786,8 @@
     if (sizeKey === lastSizeKey) return;
     lastSizeKey = sizeKey;
     renderer.setSize(w, h, false);
+    // Толстые линии скетча меряются в px — обновить resolution.
+    for (const m of segmentMats) m.resolution.set(w, h);
     if (perspCamera) {
       perspCamera.aspect = w / h;
       perspCamera.updateProjectionMatrix();
@@ -2494,6 +2813,8 @@
   class="plan-viewer relative h-full w-full overflow-hidden"
   style="width: 100%; height: 100%; position: relative; overflow: hidden;"
   data-testid="plan-viewer"
+  role="application"
+  aria-label="Редактор плана: тап выбирает, один палец вращает, два двигают, щипок масштабирует; с клавиатурой: Shift — панорама, Alt — вращение, Ctrl+Shift — зум"
   data-entity-count={entityCount}
   data-selected={selectedIds.join(',')}
   data-webgl={webgl}
@@ -2516,10 +2837,12 @@
         .join(' ')
     : ''}
   data-dims={sketchDims}
-  data-rubber={rubberTip ? `${rubberTip.x},${rubberTip.y}` : ''}
+  data-rubber={rubberFrom && rubberTip ? `${rubberTip.x},${rubberTip.y}` : ''}
+  data-cam={camKey}
   data-hover={hoveredId ?? ''}
   data-place={placeTool ? placeTool.layer : ''}
   data-ghost={ghostKey}
+  data-ghost-ok={ghostOk ? 'true' : 'false'}
   data-ghost-wall={ghostWall}
   data-sketch-closed={sketchClosed ? 'true' : 'false'}
 >

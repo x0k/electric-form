@@ -16,6 +16,7 @@ import type { FloorObject } from './furnish';
 import { MIN_PIER_MM, openingInterval } from './openings';
 import { polysOverlap, rectInFrame, rotatedRect, wallDir } from './polygon';
 import type { ApartmentState } from './model';
+import type { Operation } from './operations';
 
 export type ConflictCode =
   | 'OPENING_OUT_OF_WALL'
@@ -36,6 +37,39 @@ export interface PlanConflict {
 export const DOOR_SWING_MM = 900;
 /** Минимальный отступ электрики от проёма/торца, мм. */
 export const ELEC_CLEAR_MM = 100;
+
+/**
+ * Операция удаления сущности по id (та же логика — для кнопки Delete
+ * и для быстрого разрешения конфликта). Префиксы id стабильны:
+ * sk/sw, lt, d/win, m, f. null — удалять нечего (стены — через диалог).
+ */
+export function removeOpForEntity(id: string): Operation | null {
+  if (
+    id.startsWith('sk') ||
+    id.startsWith('sw') ||
+    id.startsWith('auto-sw') ||
+    id.startsWith('auto-sk')
+  ) {
+    return { type: 'removeElecPoint', pointId: id };
+  }
+  if (
+    id.startsWith('lt') ||
+    id.startsWith('auto-lt') ||
+    id.startsWith('auto-spot')
+  ) {
+    return { type: 'removeLuminaire', luminaireId: id };
+  }
+  if (id.startsWith('d') || id.startsWith('win')) {
+    return { type: 'deleteOpening', openingId: id };
+  }
+  if (id.startsWith('m')) {
+    return { type: 'removeWallObject', objectId: id };
+  }
+  if (id.startsWith('f')) {
+    return { type: 'removeFloorObject', objectId: id };
+  }
+  return null;
+}
 
 export function detectConflicts(state: ApartmentState): PlanConflict[] {
   const out: PlanConflict[] = [];

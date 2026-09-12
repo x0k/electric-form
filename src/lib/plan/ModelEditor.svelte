@@ -16,6 +16,7 @@
   import type { PlanConflict } from './conflicts';
   import type { EditorCameraMode } from './camera';
   import { applyOperation, type Operation } from './operations';
+  import { removeOpForEntity } from './conflicts';
   import { toggleEntity } from './selection';
   import {
     defaultElecHeight,
@@ -373,6 +374,31 @@
     selectedId = id;
   }
 
+  /** Esc: инструмент выкл + выбор сброшен (как в скетче). */
+  function handleToolCancel() {
+    toolOn = false;
+    selectedId = null;
+  }
+
+  /** Delete по выбранному — как в скетче (в просмотре запрещено). */
+  function handleDeleteKey(e: KeyboardEvent) {
+    const target = e.target as HTMLElement | null;
+    if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) {
+      return;
+    }
+    if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+    if (previewing || !selectedId) return;
+    const op = removeOpForEntity(selectedId);
+    if (!op) return;
+    const dry = applyOperation(base, op);
+    if (!dry.ok) {
+      onError(dry.error.message);
+      return;
+    }
+    onOp(op);
+    selectedId = null;
+  }
+
   const HINTS: Record<StageKind, string> = {
     layout: '',
     openings:
@@ -392,6 +418,8 @@
   ];
 </script>
 
+<svelte:window onkeydown={handleDeleteKey} />
+
 <div class="relative h-screen w-full overflow-hidden bg-base-100">
   <div class="absolute inset-0">
     <PlanViewer
@@ -410,7 +438,7 @@
       onPlace={handlePlace}
       onObjectMove={handleMove}
       onResizeObject={handleResize}
-      onToolCancel={() => (toolOn = false)}
+      onToolCancel={handleToolCancel}
     />
   </div>
 

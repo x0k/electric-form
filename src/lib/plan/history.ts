@@ -13,6 +13,7 @@
 
 import { applyOperation, type ApplyError, type Operation } from './operations';
 import { createEmptyApartment, type ApartmentState } from './model';
+import type { Sketch } from './sketch';
 
 export type StageKind =
   | 'layout'
@@ -56,6 +57,8 @@ export interface Feature {
   stage: StageKind;
   label: string;
   ops: Operation[];
+  /** Снапшот скетча этапа планировки: constraints переживают правку. */
+  sketch?: Sketch | null;
   createdAt: string;
 }
 
@@ -104,7 +107,7 @@ export type CommitResult =
  */
 export function commitDraft(
   history: PlanHistory,
-  opts: { stage: StageKind; label: string },
+  opts: { stage: StageKind; label: string; sketch?: Sketch | null },
   nowIso: () => string = () => new Date().toISOString()
 ): CommitResult {
   if (history.draft.length === 0) {
@@ -129,6 +132,7 @@ export function commitDraft(
     stage: opts.stage,
     label: opts.label,
     ops: [...history.draft],
+    sketch: opts.sketch ?? null,
     createdAt: nowIso(),
   };
   return {
@@ -188,7 +192,8 @@ export interface EditResult {
 export function editFeature(
   history: PlanHistory,
   index: number,
-  newOps: Operation[]
+  newOps: Operation[],
+  sketch?: Sketch | null
 ): { ok: true; result: EditResult } | { ok: false; error: ApplyError } {
   const target = history.features[index];
   if (!target) {
@@ -206,7 +211,13 @@ export function editFeature(
     probe = res.state;
   }
   const features = history.features.map((f, i) =>
-    i === index ? { ...f, ops: [...newOps] } : f
+    i === index
+      ? {
+          ...f,
+          ops: [...newOps],
+          ...(sketch !== undefined ? { sketch } : {}),
+        }
+      : f
   );
   const next: PlanHistory = { ...history, features };
   const { state, conflicts } = stateAt(next, next.features.length - 1);
@@ -233,6 +244,7 @@ function cloneFeature(f: Feature): Feature {
   return {
     ...f,
     ops: f.ops.map((op) => ({ ...op }) as Operation),
+    sketch: f.sketch ?? null,
   };
 }
 

@@ -243,6 +243,44 @@ describe('placing: хит канваса → параметрический як
     expect(moveObject(s, 'ghost', { plan: { x: 1, y: 1 } }).ok).toBe(false);
   });
 
+  it('привязка вдоль стены берётся из точки на стене, а не с пола', () => {
+    const s = buildSampleFlat();
+    // Луч в торец высокой стены: проекция на пол уходит на ~2 м вглубь,
+    // а точка на стене — ровно под курсором. Дверь центрируется по стене.
+    const wallHit = {
+      plan: { x: 3000, y: 2500 },
+      wallId: 'w1',
+      wallPoint: { x: 3000, y: 5 },
+    };
+    const door = placeOpening(s, wallHit, {
+      kind: 'door',
+      widthMm: 900,
+      heightMm: 2000,
+      sillMm: 0,
+    });
+    expect(door.ok).toBe(true);
+    if (!door.ok) return;
+    // Центр 3000, а не 2500: offset 2550 вместо 2050.
+    expect(door.op).toMatchObject({
+      type: 'addOpening',
+      wallId: 'w1',
+      offsetMm: 2550,
+      widthMm: 900,
+    });
+
+    // Без точки стены — старый фолбэк на план.
+    const floorHit = { plan: { x: 3000, y: 0 }, wallId: 'w1' };
+    const door2 = placeOpening(s, floorHit, {
+      kind: 'door',
+      widthMm: 900,
+      heightMm: 2000,
+      sillMm: 0,
+    });
+    expect(door2.ok).toBe(true);
+    if (!door2.ok) return;
+    expect(door2.op).toMatchObject({ type: 'addOpening', offsetMm: 2550 });
+  });
+
   it('id не сталкиваются с существующими', () => {
     const s = buildSampleFlat();
     expect(uniqueId(s, 'w1')).toBe('w1-2');

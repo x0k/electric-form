@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { applyOperation, type Operation } from '#lib/plan/operations';
 import { createEmptyApartment, type ApartmentState } from '#lib/plan/model';
-import { detectConflicts } from '#lib/plan/conflicts';
+import { detectConflicts, removeOpForEntity } from '#lib/plan/conflicts';
 
 const BASE: Operation[] = [
   {
@@ -110,5 +110,35 @@ describe('conflicts: распах проверяется габаритом, а 
       },
     ]);
     expect(detectConflicts(s)).toEqual([]);
+  });
+
+  it('removeOpForEntity строит удаление по префиксу id', () => {
+    expect(removeOpForEntity('d')).toMatchObject({
+      type: 'deleteOpening',
+      openingId: 'd',
+    });
+    expect(removeOpForEntity('win-2')).toMatchObject({
+      type: 'deleteOpening',
+      openingId: 'win-2',
+    });
+    expect(removeOpForEntity('f')).toMatchObject({
+      type: 'removeFloorObject',
+      objectId: 'f',
+    });
+    expect(removeOpForEntity('m')).toMatchObject({
+      type: 'removeWallObject',
+      objectId: 'm',
+    });
+    expect(removeOpForEntity('sk-3')).toMatchObject({
+      type: 'removeElecPoint',
+      pointId: 'sk-3',
+    });
+    expect(removeOpForEntity('lt-2')).toMatchObject({
+      type: 'removeLuminaire',
+      luminaireId: 'lt-2',
+    });
+    // Стены и мусор удалять нечем — только через диалог/панель.
+    expect(removeOpForEntity('w1')).toBeNull();
+    expect(removeOpForEntity('')).toBeNull();
   });
 });

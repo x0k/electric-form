@@ -41,6 +41,9 @@
 
   /** Выбранная кликом строка (визуально, как в FreeCAD). */
   let selectedIndex: number | null = $state(null);
+
+  /** Готово этапов: закоммиченные + текущий черновик в работе. */
+  const doneCount = $derived(features.length + (draftStage ? 1 : 0));
 </script>
 
 <section
@@ -48,7 +51,7 @@
   data-testid="stage-tree"
 >
   <h2 class="mb-1 flex items-center gap-1 font-semibold">
-    <Layers size={16} /> Этапы {features.length}/{STAGE_ORDER.length}
+    <Layers size={16} /> Этапы {doneCount}/{STAGE_ORDER.length}
   </h2>
   {#if features.length === 0 && !draftStage}
     <p class="text-xs opacity-60">Пока пусто.</p>
